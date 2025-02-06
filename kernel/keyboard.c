@@ -49,7 +49,7 @@ char keyMapping[87] = {
     [0x2d] = 'x',
     [0x15] = 'y',
     [0x2c] = 'z',
-    [0x39] = 0x20, //space
+    [0x39] = ' ', //space
     [0x02] = '1',
     [0x03] = '2',
     [0x04] = '3',
@@ -67,14 +67,65 @@ char keyMapping[87] = {
     [0x27] = ';',
     [0x28] = 0x27,   // ' 
     [0x2b] = 0x5c,   // \ 
-    [0x33] = ',', 
+    [0x3a] = ',', 
     [0x34] = '.',  
     [0x35] = '/',  
     [0x0f] = 0x09 // tab
 };
 
 //TODO
-int keyShiftMapping[] = {};
+int keyShiftMapping[] = {
+
+	[0x1e] = 'A',
+    [0x30] = 'B',
+    [0x2e] = 'C',
+    [0x20] = 'D',
+    [0x12] = 'E',
+    [0x21] = 'F',
+    [0x22] = 'G',
+    [0x23] = 'H',
+    [0x17] = 'I',
+    [0x24] = 'J',
+    [0x25] = 'K',
+    [0x26] = 'L',
+    [0x32] = 'M',
+    [0x31] = 'N',
+    [0x18] = 'O',
+    [0x19] = 'P',
+    [0x10] = 'Q',
+    [0x13] = 'R',
+    [0x1f] = 'S',
+    [0x14] = 'T',
+    [0x16] = 'U',
+    [0x2f] = 'V',
+    [0x11] = 'W',
+    [0x2d] = 'X',
+    [0x15] = 'Y',
+    [0x2c] = 'Z',
+    [0x39] = ' ', //space
+    [0x02] = '!',
+    [0x03] = '@',
+    [0x04] = '#',
+    [0x05] = '$',
+    [0x06] = '%',
+    [0x07] = '^',
+    [0x08] = '&',
+    [0x09] = '*',
+    [0x0a] = '(',
+    [0x0b] = ')',   
+    [0x0c] = '_', 
+    [0x0d] = '+',
+    [0x1a] = '{',
+    [0x1b] = '}',
+    [0x27] = ':',
+    [0x28] = '"',   // ' 
+    [0x2b] = '|',   // \ 
+    [0x3a] = '<', 
+    [0x34] = '>',  
+    [0x35] = '?',  
+    [0x0f] = 0x09 // tab
+
+};
 
 
 int keyDownMapping[185] = {
@@ -127,7 +178,7 @@ int keyDownMapping[185] = {
     [0x58] = 45,   // F12
     [0x48] = 46,   // up arrow
     [0x50] = 47,   // down arrow
-    [0x4b] = 48,   // left arrow
+    [0x4b] = 48,   // left arrow	
     [0x4d] = 49,   // right arrow
     [0x02] = 50,   // 1 (!)
     [0x03] = 51,   // 2 (@)
@@ -146,7 +197,7 @@ int keyDownMapping[185] = {
     [0x27] = 64,   // ; (:)
     [0x28] = 65,   // ' (")
     [0x2b] = 66,   // \ (|)
-    [0x33] = 67,   // , (<)
+    [0x3a] = 67,   // , (<)
     [0x34] = 68,   // . (>)
     [0x35] = 69,   // / (?)
     [0x0f] = 70   // tab
@@ -225,7 +276,7 @@ int keyUpMapping[217] = {
     [0xb3] = 67,   // , (<)
     [0xb4] = 68,   // . (>)
     [0xb5] = 69,   // / (?)
-    [0x8f] = 70   // tab
+    [0x8f] = 70    // tab
 };
 
 
@@ -243,14 +294,27 @@ int codeToAscii(unsigned short code) {
 
 	//default key code
 
-	if(isKeyPressed(LFT_SHFT)){
-
-		//return upper case mapping
-	}
-
 	if(keyDownMapping[code] != 0){
 
-		return keyMapping[code];
+		if(isKeyPressed(LFT_SHFT)){
+
+            if(code == 0x2e){
+
+                clearScreen();
+
+                return 0;
+            }
+			else {
+
+                return keyShiftMapping[code];
+            }
+
+		}
+		else{
+
+			return keyMapping[code];
+
+		}
 
 	}
 

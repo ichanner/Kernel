@@ -1,0 +1,5 @@
+QEMU 9.2.0 monitor - type 'help' for more information
+(qemu) 
+(qemu) e[K[Deq[K[D[Dequ[K[D[D[Dequm[K[D[D[D[Dequme[K
+unknown command: 'equme'
+(qemu) 

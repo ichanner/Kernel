@@ -1,5 +1,7 @@
 #include "../system.c"
 #include "../keyboard.c"
+#include "../scheduler.c"
+#include <stdbool.h>
 
 void handle_critical_error(const char* error_message) {
 
@@ -135,30 +137,24 @@ void isr_29() { print("Reserved ISR 29\n"); halt(); }
 void isr_30() { print("Reserved ISR 30\n"); halt(); }
 void isr_31() { print("Reserved ISR 31\n"); halt(); }
 
-void irq_32() { 
-
-	disable_interrupts();
-
-//	print("IRQ: 32\n"); 
-
-	irq_cleanup(false);
-
-}
 void irq_33() { 
 
 	disable_interrupts();
 
-	int buffer = inb(0x60);
+	int status = inb(0x64);
 
-	char test[] = {codeToAscii(buffer), '\0'};
-	
+	if(status | 1 == 1) {
+
+		int buffer = inb(0x60);
+
+		onKeyPressed(buffer);
+		onKeyReleased(buffer);
 		
-	print(test);
+		char test[] = {codeToAscii(buffer), '\0'};
+		
+		print(test);
 
-	
-
-	//convert scan code to ascii 
-
+	}
 
 
 	irq_cleanup(false);

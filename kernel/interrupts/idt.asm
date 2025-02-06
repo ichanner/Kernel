@@ -1,53 +1,32 @@
-[extern isr_0]
-[extern isr_1]
-[extern isr_2]
-[extern isr_3]
-[extern isr_4]
-[extern isr_5]
-[extern isr_6]
-[extern isr_7]
-[extern isr_8]
-[extern isr_9]
-[extern isr_10]
-[extern isr_11]
-[extern isr_12]
-[extern isr_13]
-[extern isr_14]
-[extern isr_15]
-[extern isr_16]
-[extern isr_17]
-[extern isr_18]
-[extern isr_19]
-[extern isr_20]
-[extern isr_21]
-[extern isr_22]
-[extern isr_23]
-[extern isr_24]
-[extern isr_25]
-[extern isr_26]
-[extern isr_27]
-[extern isr_28]
-[extern isr_29]
-[extern isr_30]
-[extern isr_31]
-[extern irq_32]
-[extern irq_33]
-[extern irq_34]
-[extern irq_35]
-[extern irq_36]
-[extern irq_37]
-[extern irq_38]
-[extern irq_39]
-[extern irq_40]
-[extern irq_41]
-[extern irq_42]
-[extern irq_43]
-[extern irq_44]
-[extern irq_45]
-[extern irq_46]
-[extern irq_47]
-[extern irq_48]
 
+
+
+
+irq_32:
+
+	cli
+
+   	push esi
+
+   	mov esi, [esp + 4]
+   	push esi
+
+   	push edi
+   	push edx
+   	push ecx 
+   	push ebx
+   	push eax
+
+    call scheduleProcess  
+
+    add esp, 28d
+
+    mov al, 0x20
+    out 0x20, al
+
+    call contextSwitch
+
+    iret
 
 
 ; [MSB Offset (Byte 6 & 7)] [P | DPL | 0D11T | 0000 | Resverd (byte 4 and 5)]  [Segment Selector (Byte 3 & 2)][LSB Offset (Byte 1 and 0)] 

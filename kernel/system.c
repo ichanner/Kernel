@@ -2,7 +2,6 @@
 
 void outb(unsigned char value,  unsigned short port){
 
-
 	asm volatile("outb %0, %1\n" : : "a"(value), "Nd"(port));
 }
 

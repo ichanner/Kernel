@@ -1,4 +1,3 @@
-[bits 16]
 
 gdt:
 
@@ -25,6 +24,8 @@ gdt:
         db 10010010b ; [ P | DPL[1:0] | S | Type[3:0]]
         db 11001111b, ; [ G | D/B | L | AVL | MSB limit[19:16]]
         db 0x0 ; msb base addr
+
+    tss_descriptor: dw 103d, tss, 1000100100000000b, 0x0
 
 gdt_end:
 

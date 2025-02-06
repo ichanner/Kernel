@@ -6,6 +6,32 @@ const int SCREEN_HEIGHT = 80;
 
 // (row * screen_width + col) * 2
 
+void clearScreen(){
+
+	disable_interrupts();
+
+	char* video_memory = (char*)0xb8000;
+
+	for(int i = 0; i < SCREEN_HEIGHT * SCREEN_WIDTH; i++){
+
+		video_memory[i] = 0x0000;
+		video_memory[i+1] = 0x07;
+	}
+
+	textPos = 0;
+	currLine = 0;
+
+	int eax;
+
+	asm volatile("mov %%edi, %0" : "=r"(eax));
+
+	printi(eax);
+	println();
+
+	enable_interrupts();
+
+}
+
 void print(char* message){
 
 	char* video_memory = (char*)0xb8000;
