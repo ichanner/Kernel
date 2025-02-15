@@ -49,10 +49,12 @@
 [extern irq_47]
 [extern irq_48]
 
-[extern test]
+[extern identity_page_directory]
 
 [extern contextSwitch]
 [extern scheduleProcess]
+
+[global enable_paging]
 
 call set_video_mode
 call load_gdt
@@ -129,7 +131,20 @@ load_idt:
 
   ret
 
+
+
 [bits 32]
+
+enable_paging: 
+  
+  mov eax, [identity_page_directory]
+  mov cr3, eax
+
+  mov eax, cr0
+  or eax, 0x80000000 ; 31st bit set to 1
+  mov cr0, eax
+
+ ret
 
 kernel_start: 
 	
@@ -140,7 +155,7 @@ kernel_start:
 	mov fs, eax
 	mov gs, eax
 
-	mov ebp, 0xF000 ; 0x8200 + 
+	mov ebp, 0xF000 ; 0x8200 + 3072 bytes
 	mov esp, ebp
 
 	sti
@@ -149,8 +164,11 @@ kernel_start:
 
 %include './kernel/gdt.asm'
 %include './kernel/interrupts/idt.asm'
+
 CODE_SEG equ kernel_code-gdt
 DATA_SEG equ kernel_data-gdt
+
+
 
 tss: 
     dd 0,

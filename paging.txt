@@ -1,0 +1,196 @@
+
+The Task State Segment (TSS) in modern kernels is primarily used to store the kernel stack pointer for handling CPU privilege level transitions (like switching from user mode to kernel mode) during interrupts and system calls.
+
+	1.	When a privilege-level change occurs (e.g., an interrupt happens in user mode),
+	2.	The CPU looks at the TSS to find the kernel-mode stack pointer (SS:ESP for Ring 0),
+	3.	The CPU automatically switches to this stack, ensuring safe execution in kernel mode.
+
+Paging 
+
+When a process is created it's allocated virtual memory by the OS
+
+The virtual memory is then segmented into pages (let's say 4KB each)
+
+The physical memory is segmented in a similar manner in the same unit of size and they are called page frames 
+
+Since a page and page frame are of the same size a page can loaded into 1 page frame 
+
+To load a process into memory each page is loaded into a page frame
+
+Each process will have a page table to map pages to page frames
+
+Any memory address to read/write will be a virtual memory address that will be transalted by the page table
+
+the virtual memory address generate by process themselves contain a page number and offset?
+
+Virtual Add less [Page Number : Offset] → Page Table [ Page Number -> Page Frame Number (or Page Frame base addres itself) ] -> Page Frame Number * Size of Page frame + offset → Physical Page Frame (where actual data is stored)
+
+Different/
+
+Virtual address [ Page Number : Offset ]  -> MMU -> MMU consults page table to get page frame base address -> the result is added to offset from virtual address to get physical address 
+
+Since this translation process slows down program by a factor of 3, there is a cache of recently looked up translated addresse (TLB)  Translation Lookaside Buffer
+
+The hardware that is responsible for the process of memory address translation is known as memory management unit (MMU).
+
+memory can't access memory outside its process because the page table doesnt have mappings to ouside it's context
+
+
+Virtual memory is a memory management technique of making the best use of avaliable main memory to be shared among different processes 
+
+When some instruction in the entry code tries to read data or call a routine that doesn't exist on the loaded page, then, the needed page will be loaded into the main memory and that piece which was not there can be used after this loading, that is, any page of the process will not be loaded into a free page frame unless it's really needed, otherwise, it will be waiting on the disk, this is known as demand paging.
+
+
+- don't load in all the programs pages all at once - only load in the pages that are needed and leave the rest on the disk until they are needed - know as demand paging 
+
+
+- when main memory is full and more pages need to be loaded swapping will be performed algorithms like LRU or first in first out to find a victim frame (the frame to swap) with the new demanded frames into main memory and the victim frame back into disk 
+
+- The page table stores information that is useful for virtual memory. A page table entry has a present flag which indicates if this page is loaded into main memory or not. If a virtual memory address references a page that isn't loaded the cpu won't deal with it will only throw a Page Fault and have the kernel load the page into main memory . THis makes demand paging possible 
+
+
+“Virtual memory enables processes to use more memory than physically available. The OS manages swapping and page faults by moving data between RAM and disk as needed.”
+
+
+✅ Virtual memory provides an abstraction that separates process memory from physical RAM.
+✅ The OS handles swapping pages when RAM is full.
+✅ The MMU detects missing pages and triggers page faults.
+✅ The OS loads the required page into RAM when a page fault occurs.
+
+
+
+
+3 levels of paging (related to how much space is in each page): 
+
+32-bit paging 
+	
+	- set last bit in CR0 to 1 to enable protected mode  
+	- load CR3 with the physical address of the Page Directory.
+	- set 31st bit in CR0 to 1 to enable paging 
+
+PAE paging (Physical Address Extension) - set bit 5th bit in cr4 to 1
+
+	- PAE extends the physical address size from 32-bit to 36-bit, allowing access to 64GB of RAM.
+
+4 level paging (64 bit mode) ~ Don't worry about for now
+
+
+my job: on context swith: change cr3, flush tlb. create array of page directory entries and page tables map the two. cpus job: generate the virtual adddress and  do the address translations and populate by populating page directory and page tables
+
+ The Structure of Linear Memory Address
+
+Divided into 3 parts 
+
+31-22	Page Directory Index (PDI) -	Indexes a Page Directory Entry which contains page table base address (PDE)
+21-12	Page Table Index (PTI) -	Indexes a Page Table Entry which contains page frame base address (PTE).  
+11-0	Offset -	Offset within the 4 KB page frame
+
+  page directory -> page table -> page frame
+
+  two-level page table - helps save space because page tables can get pretty large if the application takes up a lot of memory  
+
+  A page direcotry in x86 can store up to 1024 entries 
+  	-> Each entry points to a page table and each of those page tables can also contain up to 1024 entries 
+  	-> For each process there is more than one page table 
+  	
+
+  CR3 stores the base address of the running process's page directory 
+
+  Linear Address = [PDI | PTI | Offset]
+
+  -> CR3 + PDI => PDE (contain page table base address) 
+  -> PDE + PTI => PTE (contains page frame base address)
+  -> PTI + Offset => Data in physical memory 
+
+
+ The Structure of a Page Directory Entry
+
+ An entry in the page directory is 4 bytes (32 bits)
+
+
+ bit 0 is the P flag (Present Flag) indicates if this page table has been loaded into memory or not 
+
+ 	- if the page table in question is to be accesed that isn't loaded into memory the cpu will generates a page fault hat tells the kernel to load this page table because it is needed right now.
+
+ Security flags:
+
+bit 1 is the W flag:
+
+	0 indicates this page table is read only 
+	1 indicates this page table is write enabled 
+
+bit 2 is the U flag:
+
+	0: Only privileged (Ring 0, 1, 2) code (kernel) can access this page. User-mode (Ring 3) is blocked.
+	1: Both privileged and user-mode (Ring 3) code can access this page.
+
+
+Caching: 
+
+translation lookaside buffer 
+
+To speed up access time page directory entries and page table entries are stored in the TLB which a small fast memory unit within the processor which is checked first 
+
+
+bit 4 is the PCD flag 
+	- 1 - this entry in the page directory won't be cached
+	- 0 - this entry in the page directory will be cachd 
+
+
+The cache is not only for reading but also for writting to it
+
+for example, assume that page table x has been cached after using it in the first time and there is a page in this page table, call it y, that isn't loaded into the memory. We decided to load the page y which means present bit of the entry that represents this page should be changed in the page table x.
+
+So we change the page table entry in the cache which causes inconsitency between source and cached data.
+
+The timing of writing the updated changes to the source is known as write policy
+
+write-through: update the cache and source at the same time
+write-back: update the cache and update source later
+
+bit 3 determines this write policy is determined by the PTW flag 
+
+1 - write through 
+0 - write back
+
+
+bit 5 is the access flag A (THIS IS THE CPU'S RESPONSIBITY)
+ 
+ set to 1 when a page table which is referred to by the given page directory entry is accessed 
+
+ set to 0 - only by the kernel for whatever reason
+
+
+in x86 the size of a page can be either 4MB or 4KB
+
+bit 7 PS flag
+
+	0 - page size is 4KB
+	1 - page size is 4MB
+
+
+BIG DIFFERENCE: between the two: when the page size is 4MB long normal one level page table will be used and the page directory will no longer point to page tables but instead at page frames. Whne the page size is 4KB two level page tabel will be used with page directory mapping to page tables.
+
+The number of entries that are needed to represent 4KB pages are way more than the number of entries that are needed to represent 4MB pages because of more segmentation needed for 4KB paging
+
+bits 6,8,9,10, and 11 are ignored 
+
+
+bits 12 to 31 are the physical base address of the page table that this entry points to 
+
+
+
+Page table entry is almost the same as page directory entry except for:
+
+- bit 7 is ignored here 
+- bit 6 is no longer ignored and is referred to as the dirty bit 
+	
+	Recall the victim frame, when we run out of main memory a frame must be written back to the disk to make room for new frames to be loaded the frame we remove from main memory is the victim frame.
+
+	Before writting back to the disk, which is a costly operation the dirty bit will tell us if this page frame has been changed and has differences with the disk version
+
+		- 1 if the disk and ram version are different 
+		- 0 if they are identical 
+
+
+

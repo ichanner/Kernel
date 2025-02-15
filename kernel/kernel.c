@@ -2,6 +2,7 @@
 #include "./screen.c"
 #include "./process.c";
 #include "./interrupts/interrupt_handlers.c"
+#include "./paging.c"
 
 void test(){
 
@@ -76,8 +77,6 @@ void processE(){
 
 void main() {
 
-	//disable_interrupts();
-
 	char* msg = "Welcome to Channer OS\0";
 
 	print(msg);	
@@ -97,11 +96,10 @@ void main() {
 	createProcess(&processE, &pcbE);
 
 
+	init_paging();
+
 
 	initScheduler();
-
-
-//	enable_interrupts();
 
 
     while (1) { }
