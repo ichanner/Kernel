@@ -1,8 +1,11 @@
 
-
 extern void enable_paging();
 
-typedef struct {
+#define FRAME_SIZE 4096
+#define RAM_SIZE 0x400000 //4MB ~ for now
+#define BITMAP_SIZE 32 
+
+typedef struct  {
 
 	unsigned int p : 1;
 	unsigned int w : 1;
@@ -18,7 +21,7 @@ typedef struct {
 	unsigned int ignored_11 : 1;
 	unsigned int page_table_address : 20;
 
-}  __attribute__((packed)) PageDirectoryEntry;
+}   PageDirectoryEntry;
 
 typedef struct {
 
@@ -36,13 +39,12 @@ typedef struct {
 	unsigned int ignored_11 : 1;
 	unsigned int page_frame_address : 20;
 
-} __attribute__((packed)) PageTableEntry;
+}  PageTableEntry;
 
+typedef unsigned int page_t;
+
+int frame_bitmap[RAM_SIZE/(FRAME_SIZE*BITMAP_SIZE)];
+int frame_index;
 
 PageDirectoryEntry* identity_page_directory;
 PageTableEntry* identity_page_table;
-
-
-///PageDirectoryEntry identity_page_directory[1024] __attribute__((aligned(4096)));
-//PageTableEntry identiy_page_table[1024] __attribute__((aligned(4096)));
-

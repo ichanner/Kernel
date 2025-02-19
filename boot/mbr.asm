@@ -8,8 +8,8 @@ xor ax, ax
 mov es, ax
 mov ds, ax
 
-;mov bp, 0x8000 ; (0x7c00 + 512) + 512 
-;mov sp, bp
+mov bp, 0x8000 ; (0x7c00 + 512) + 512 
+mov sp, bp
 
 mov ah, 0x2
 mov al, KERNEL_SECTORS_COUNT 

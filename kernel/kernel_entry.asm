@@ -53,6 +53,7 @@
 
 [extern contextSwitch]
 [extern scheduleProcess]
+[extern handlePageFault]
 
 [global enable_paging]
 
@@ -131,8 +132,6 @@ load_idt:
 
   ret
 
-
-
 [bits 32]
 
 enable_paging: 
@@ -144,7 +143,7 @@ enable_paging:
   or eax, 0x80000000 ; 31st bit set to 1
   mov cr0, eax
 
- ret
+  ret
 
 kernel_start: 
 	

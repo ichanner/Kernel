@@ -94,10 +94,12 @@ void isr_13() {
     handle_critical_error("General Protection Fault\n");
 }
 
+/*
 void isr_14() { 
+
     print("Page Fault\n");
-    halt(); // In a full OS, you'd handle virtual memory here
 }
+*/
 
 void isr_15() { 
     print("Reserved Interrupt (15)\n"); 

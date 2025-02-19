@@ -1,5 +1,28 @@
 
 
+isr_14:
+
+	cli
+
+	;push eax
+ 	
+ 	mov eax, [esp]
+ 	
+ 	push eax
+
+	mov eax, cr2
+	
+	push eax
+
+	call handlePageFault 
+
+	add esp, 8d
+
+	;pop eax
+
+	sti
+
+	iret 
 
 irq_32:
 

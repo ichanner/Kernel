@@ -3,6 +3,7 @@
 #include "./process.c";
 #include "./interrupts/interrupt_handlers.c"
 #include "./paging.c"
+#include "./ata.c"
 
 void test(){
 
@@ -95,11 +96,21 @@ void main() {
 	createProcess(&processD, &pcbD);
 	createProcess(&processE, &pcbE);
 
-
-	init_paging();
-
+	initPaging();
+	
+	int* memory = (int*)alloc(800);
+	
+	printi(memory[0]);  // Access the first entry of the second page table
 
 	initScheduler();
+
+//	int* memory = (int*)alloc(800);
+
+//	printi(memory[0]);
+
+	//unsigned short* buffer = read(100, 50);
+
+
 
 
     while (1) { }

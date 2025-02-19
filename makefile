@@ -6,7 +6,7 @@ KERNEL_ENTRY = ./kernel/kernel_entry.asm
 KERNEL_ENTRY_OBJECT = ./out/kernel_entry.o
 LINKED_KERNEL = ./out/kernel.bin
 FINAL_IMAGE = ./out/os_image.img
-
+SUM2 = ./user/sum2.c
 
 INTERRUPT_HANDLERS="./kernel/scheduler.c"
 INTERRUPT_HANDLERS_OBJECT="./out/scheduler.o"
@@ -20,9 +20,10 @@ build: $(BOOTLOADER) $(KERNEL) $(KERNEL_ENTRY)
 
 	nasm -f bin $(BOOTLOADER) -o $(BOOTLOADER_BIN)
 	
-	dd if=/dev/zero of=$(FINAL_IMAGE) bs=512 count=50
+	dd if=/dev/zero of=$(FINAL_IMAGE) bs=512 count=51
 	dd if=$(BOOTLOADER_BIN) of=$(FINAL_IMAGE) conv=notrunc
 	dd if=$(LINKED_KERNEL) of=$(FINAL_IMAGE) bs=512 seek=1 conv=notrunc
+	dd if=$(SUM2) of=$(FINAL_IMAGE) bs=512 seek=50 conv=notrunc
 
 clean:
 

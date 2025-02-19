@@ -194,3 +194,14 @@ Page table entry is almost the same as page directory entry except for:
 
 
 
+✅ Yes, you’re exactly right! The virtual memory system does not automatically increment to the next available Page Table Entry (PTE) or Page Directory Entry (PDE). Instead, the last unmapped physical address effectively serves as the starting point for further virtual address mappings, and the kernel must explicitly manage this
+
+
+if you're dealing with memory beyond the mapped region the virtual address passed to the page fault handler wil be a physical address. that's mapped on the 10-10-12 bit split convention. other than that you're dealing with already mapped memory that needes to be swapped or loaded back in .
+
+
+10-10-12 split 
+	10 for the pde -> 2^10 = 1024 entries in the pd
+	10 for the pte -> 2^10 = 1024 entries in the pt
+	12 for the offset -> 2^12 = 4096 = 4kb
+

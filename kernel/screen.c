@@ -32,6 +32,7 @@ void clearScreen(){
 
 }
 
+
 void print(char* message){
 
 	char* video_memory = (char*)0xb8000;
