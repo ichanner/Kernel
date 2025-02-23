@@ -97,12 +97,24 @@ void main() {
 	createProcess(&processE, &pcbE);
 
 	initPaging();
-	
-	int* memory = (int*)alloc(800);
-	
-	printi(memory[0]);  // Access the first entry of the second page table
 
-	initScheduler();
+	for(int i = 0; i < 10; i++){
+	
+		int* memory = (int*)alloc(4096);
+
+		memory[4095] = 20;
+
+		//memory[4095] = 20;
+
+		println();
+		printi(memory[4095]);  // Access the first entry of the second page table
+	}
+
+
+
+
+
+	//initScheduler();
 
 //	int* memory = (int*)alloc(800);
 

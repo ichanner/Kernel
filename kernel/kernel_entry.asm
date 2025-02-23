@@ -49,7 +49,7 @@
 [extern irq_47]
 [extern irq_48]
 
-[extern identity_page_directory]
+[extern page_directory]
 
 [extern contextSwitch]
 [extern scheduleProcess]
@@ -136,7 +136,7 @@ load_idt:
 
 enable_paging: 
   
-  mov eax, [identity_page_directory]
+  mov eax, [page_directory]
   mov cr3, eax
 
   mov eax, cr0

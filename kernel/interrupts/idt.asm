@@ -1,7 +1,7 @@
 
 
 isr_14:
-
+	
 	cli
 
 	;push eax
@@ -11,16 +11,21 @@ isr_14:
  	push eax
 
 	mov eax, cr2
-	
+
 	push eax
 
 	call handlePageFault 
 
-	add esp, 8d
+	mov eax, cr2
+	
+	invlpg [eax]
+
+	add esp, 12d
 
 	;pop eax
 
 	sti
+
 
 	iret 
 

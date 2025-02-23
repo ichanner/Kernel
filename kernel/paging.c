@@ -2,6 +2,48 @@
 #include "./heap.c"
 
 
+/*
+    
+    TODO:
+
+        implement LRU algorithm
+            - finding least recently used frame
+            - check dirty bit and swap it to frame
+
+
+        do page directory context swtich 
+
+*/
+
+
+
+
+void clearAccessBits(){
+
+/*
+    for(int i = 0; i < 1024; i++){
+
+        for(int j = 0; )
+    }
+    */
+}
+
+page_t* allocateFrame(){
+
+    int free_frame_index = findFreeFrame();
+
+    //set as used 
+    setFrame(free_frame_index, 1);
+
+    frame_index = free_frame_index;
+
+    return (page_t*)(free_frame_index*FRAME_SIZE);
+
+}
+
+
+
+
 PageTableEntry createPageTableEntry(unsigned int p, unsigned int w, unsigned int u, unsigned int pcd, unsigned int ptw, unsigned int frame_addr){
 
     PageTableEntry pte = { p, w, u, pcd, ptw, 0, 0, 0, 0, 0, 0, 0, frame_addr >> 12 };
@@ -44,45 +86,40 @@ void setFrame(int frame_index, int present) {
     
 }
 
+
 void initPaging(){
-
    
-   int frame_limit = 0x100000;
-   int num_pages = frame_limit/FRAME_SIZE;
-   int curr_frame = 0x00000;
+   int frame_limit = 0x100000; //Map up to 4MB 
+   int num_pages = frame_limit/FRAME_SIZE; 
+   
+   PageTableEntry*  page_table = (PageTableEntry*)allocateFrame();
 
-   frame_index = 0;
+   memset(page_table, 4096, 0);
 
-   identity_page_table = (PageTableEntry*)alloc(1024*8);
+  // PageTableEntry* page_table = (PageTableEntry*)alloc(4096);
+
+   page_directory = (PageDirectoryEntry*)allocateFrame();
+
+   memset(page_directory, 4096, 0);
 
    for (int i = 0; i < num_pages; i++) {
-
-        //PageTableEntry identity_pte = { 1, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, curr_frame >> 12 };
-
-        identity_page_table[i] = createPageTableEntry(1,1,0,0,1,curr_frame);
+        
+        page_table[i] = createPageTableEntry(1, 1, 0, 0, 1, i * FRAME_SIZE);
  
         setFrame(i, 1); // mark frame as present in the bit map
-
-        curr_frame += FRAME_SIZE;
-        frame_index+= 1;
+        
+        frame_index += 1;
     }
 
-    unsigned int page_table_address = identity_page_table;
 
-    //PageDirectoryEntry page_directory_entry = { 1, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, page_table_address >> 12  };
-    
-    PageDirectoryEntry page_directory_entry = createPageDirectoryEntry(1,1,0,0,1,page_table_address);
-    
-    identity_page_directory = (PageDirectoryEntry*)alloc(1024*8);
-
-    //allocate page direcoty
-
-    identity_page_directory[0] = page_directory_entry;
+    page_directory[0] = createPageDirectoryEntry(1, 1, 0, 0, 1, (unsigned int)page_table);
+  
+  //  page_directory[1023] = createPageDirectoryEntry(1, 1, 0, 0, 1, (unsigned int)page_directory);
 
     enable_paging();
-
     
 }
+
 
 int lruSwap(){
 
@@ -119,26 +156,11 @@ int findFreeFrame(){
     }
 }
 
-page_t* allocateFrame(){
-
-    int free_frame_index = findFreeFrame();
-
-    //set as used 
-    setFrame(free_frame_index, 1);
-
-    frame_index = free_frame_index;
-
-    return (page_t*)(free_frame_index*FRAME_SIZE);
-
-}
-
-
 
 void handlePageFault(int virtual_address, int code){
 
-    print("page fault");
-    println();
-
+     print("page fault");
+   // println();
 
     //first 12 bits
     unsigned int offset = (virtual_address & 0xFFFFF000) ^ virtual_address;
@@ -149,42 +171,67 @@ void handlePageFault(int virtual_address, int code){
     //upper 10 bits
     unsigned int pde_index = ((virtual_address & 0x3FFFFF) ^ virtual_address) >> 22;
 
+/*
+    println();
+    print("pte_index: ");
+    printi(pte_index);
+    println();
+    print("pde_index: ");
+    printi(pde_index);
+    println();
+*/
 
-    if(0x2 & code) {
+   // if(0x2 & code) {
 
-        // does the page direcotry entry exist?
+        PageDirectoryEntry pd = page_directory[pde_index];
+        
+        unsigned int page_table_address = pd.page_table_address << 12;
+        unsigned int present = pd.p;
 
-        unsigned int page_table_address = identity_page_directory[pde_index].page_table_address; 
+        if(present == 0x0) { // if pde isn't present 
 
-        if(page_table_address == 0x0){
+          //  println();
+            print("Creating new page table");
 
-            // create a new page table 
-            PageTableEntry* page_table = (PageTableEntry*)alloc(1024 * 8);
+            // create a new page table from allocated frame
+            PageTableEntry* page_table = (PageTableEntry*)allocateFrame();
+            
+            // assign frame address for new page table to new page directory entry
+            PageDirectoryEntry page_directory_entry = createPageDirectoryEntry(1,1,0,0,1, (unsigned int) page_table);
+            
+            // assign new pde to page directory
+            page_directory[pde_index] = page_directory_entry;
 
-            // add entry to the page table
+            // allocate a new frame
             page_t* frame_addr = allocateFrame();
+
+            // assign frame to new page table entry 
             page_table[pte_index] = createPageTableEntry(1,1,0,0,1,frame_addr);
-
-            page_table_address = page_table;
-
-            // create page directory entry
-            PageDirectoryEntry page_directory_entry = createPageDirectoryEntry(1,1,0,0,1,page_table_address);
-            identity_page_directory[pde_index] = page_directory_entry;
 
         }
         else {
 
+
+         //   println();
+            print("Page table found");
+
+            // get page table from page table address 
             PageTableEntry* page_table = (PageTableEntry*)page_table_address;
-
-            // add entry to the page table
+            
+            // allocate a new frame
             page_t* frame_addr = allocateFrame();
+
+            // assign frame to new page table entry 
+            
             page_table[pte_index] = createPageTableEntry(1,1,0,0,1,frame_addr);
-
+        
         }
-    }
+        
+        
+   // }
 
 
-    return;
+
 
     
 }

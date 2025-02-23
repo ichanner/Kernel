@@ -46,5 +46,6 @@ typedef unsigned int page_t;
 int frame_bitmap[RAM_SIZE/(FRAME_SIZE*BITMAP_SIZE)];
 int frame_index;
 
-PageDirectoryEntry* identity_page_directory;
-PageTableEntry* identity_page_table;
+PageDirectoryEntry*  page_directory;
+
+//PageTableEntry* identity_page_table;
