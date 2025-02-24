@@ -97,7 +97,7 @@ void main() {
 	createProcess(&processE, &pcbE);
 
 	initPaging();
-
+/*
 	for(int i = 0; i < 10; i++){
 	
 		int* memory = (int*)alloc(4096);
@@ -109,7 +109,30 @@ void main() {
 		println();
 		printi(memory[4095]);  // Access the first entry of the second page table
 	}
+*/
 
+
+	unsigned short* write_buffer = (unsigned short*)alloc(512);
+
+	//write(1, 50, write_buffer);
+
+	unsigned short* result = read(1, 50);
+
+//		clearScreen();
+
+	//2074
+	//7573
+	//286D
+	//7D0A
+
+
+
+	for(int i = 0; i < 256; i++){
+
+		printi(result[i]);
+
+		println();
+	}
 
 
 

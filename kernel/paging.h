@@ -46,6 +46,8 @@ typedef unsigned int page_t;
 int frame_bitmap[RAM_SIZE/(FRAME_SIZE*BITMAP_SIZE)];
 int frame_index;
 
-PageDirectoryEntry*  page_directory;
+int lru_scores[RAM_SIZE/FRAME_SIZE]; // each score should be an int 
+
+PageDirectoryEntry* page_directory;
 
 //PageTableEntry* identity_page_table;

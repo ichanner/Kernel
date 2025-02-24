@@ -17,15 +17,54 @@
 
 
 
+/*
+
+Aging clock algorithm
+
+    Every round 
+        - if access bit is 0: score +1
+        - if access bit is 1: score / 2 
+        - initialze new scores to 1
+        - closer to 0 indicates most used closer to inf indicates least used 
+
+        we dont care about page tables entries that aren't present because they don't map to a valid physical address
+        we dont care about page directory entries that aren't presnet because they dont map to a valid page table 
+*/
 
 void clearAccessBits(){
 
-/*
-    for(int i = 0; i < 1024; i++){
+    for(int i = 0; i < 1024; i++) {
 
-        for(int j = 0; )
+        PageDirectoryEntry pde = page_directory[i];
+
+        PageTableEntry* pt = (PageTableEntry*)pde.page_table_address;
+
+        if(pde.p != 0x0){
+
+            for(int j = 0; j < 1024; j++) {
+
+                PageTableEntry pte = pt[j]; 
+
+                if(pte.p != 0x0){
+
+                    unsigned int a = pte.a;
+
+                    int lru_score = lru_scores[pte.page_frame_address/FRAME_SIZE];
+
+                    if(a == 0x1){
+
+                        lru_scores[pte.page_frame_address/FRAME_SIZE] = lru_score / 2;
+                    }
+                    else{
+
+                        lru_scores[pte.page_frame_address/FRAME_SIZE] = lru_score + 1;
+                    }
+
+                    pt[j].a = 0;
+                }
+            }
+        }   
     }
-    */
 }
 
 page_t* allocateFrame(){
@@ -42,11 +81,9 @@ page_t* allocateFrame(){
 }
 
 
+PageTableEntry createPageTableEntry(unsigned int p, unsigned int w, unsigned int u, unsigned int pcd, unsigned int ptw, unsigned int dirty, unsigned int frame_addr){
 
-
-PageTableEntry createPageTableEntry(unsigned int p, unsigned int w, unsigned int u, unsigned int pcd, unsigned int ptw, unsigned int frame_addr){
-
-    PageTableEntry pte = { p, w, u, pcd, ptw, 0, 0, 0, 0, 0, 0, 0, frame_addr >> 12 };
+    PageTableEntry pte = { p, w, u, pcd, ptw, 0, dirty, 0, 0, 0, 0, 0, frame_addr >> 12 };
 
     return pte;
 }
@@ -87,6 +124,20 @@ void setFrame(int frame_index, int present) {
 }
 
 
+/*
+
+    Currently: 
+
+       We map the first page table to itself because the first page table maps the page directory 
+
+        - To get page directory: First Page Table -> Page Directory (therefore both must be mapped as they rely on eachother)
+    
+
+    Next:
+
+        We now want to just map the page directory to itself withotu intermediate page table loookup 
+*/
+
 void initPaging(){
    
    int frame_limit = 0x100000; //Map up to 4MB 
@@ -96,26 +147,21 @@ void initPaging(){
 
    memset(page_table, 4096, 0);
 
-  // PageTableEntry* page_table = (PageTableEntry*)alloc(4096);
-
    page_directory = (PageDirectoryEntry*)allocateFrame();
 
    memset(page_directory, 4096, 0);
 
    for (int i = 0; i < num_pages; i++) {
         
-        page_table[i] = createPageTableEntry(1, 1, 0, 0, 1, i * FRAME_SIZE);
+        page_table[i] = createPageTableEntry(1, 1, 0, 0, 1, 0, i * FRAME_SIZE);
  
         setFrame(i, 1); // mark frame as present in the bit map
         
         frame_index += 1;
     }
 
-
     page_directory[0] = createPageDirectoryEntry(1, 1, 0, 0, 1, (unsigned int)page_table);
   
-  //  page_directory[1023] = createPageDirectoryEntry(1, 1, 0, 0, 1, (unsigned int)page_directory);
-
     enable_paging();
     
 }
@@ -159,7 +205,7 @@ int findFreeFrame(){
 
 void handlePageFault(int virtual_address, int code){
 
-     print("page fault");
+   //  print("page fault");
    // println();
 
     //first 12 bits
@@ -191,7 +237,7 @@ void handlePageFault(int virtual_address, int code){
         if(present == 0x0) { // if pde isn't present 
 
           //  println();
-            print("Creating new page table");
+       //     print("Creating new page table");
 
             // create a new page table from allocated frame
             PageTableEntry* page_table = (PageTableEntry*)allocateFrame();
@@ -206,14 +252,14 @@ void handlePageFault(int virtual_address, int code){
             page_t* frame_addr = allocateFrame();
 
             // assign frame to new page table entry 
-            page_table[pte_index] = createPageTableEntry(1,1,0,0,1,frame_addr);
+            page_table[pte_index] = createPageTableEntry(1, 1, 0, 0, 1, 0, frame_addr);
 
         }
         else {
 
 
          //   println();
-            print("Page table found");
+         //   print("Page table found");
 
             // get page table from page table address 
             PageTableEntry* page_table = (PageTableEntry*)page_table_address;
@@ -222,8 +268,7 @@ void handlePageFault(int virtual_address, int code){
             page_t* frame_addr = allocateFrame();
 
             // assign frame to new page table entry 
-            
-            page_table[pte_index] = createPageTableEntry(1,1,0,0,1,frame_addr);
+            page_table[pte_index] = createPageTableEntry(1,1,0,0,1,0,frame_addr);
         
         }
         

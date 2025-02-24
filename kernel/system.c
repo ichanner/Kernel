@@ -6,6 +6,11 @@ void outb(unsigned char value,  unsigned short port){
 	asm volatile("outb %0, %1\n" : : "a"(value), "Nd"(port));
 }
 
+void outw(unsigned short value,  unsigned short port){
+
+	asm volatile("outw %0, %1\n" : : "a"(value), "Nd"(port));
+} 
+
 unsigned short inw(unsigned short port){
 
 	unsigned short buffer;
@@ -25,10 +30,12 @@ unsigned char inb(unsigned short port){
 }
 
 
+
 void enable_interrupts(){
 
 	asm volatile("sti");
 }
+
 
 void disable_interrupts(){
 
