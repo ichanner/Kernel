@@ -48,15 +48,14 @@
 [extern irq_46]
 [extern irq_47]
 [extern irq_48]
-
 [extern page_directory]
-
+[extern calculateLRU]
 [extern contextSwitch]
 [extern scheduleProcess]
 [extern handlePageFault]
-
 [global enable_paging]
 
+call get_memory_map
 call set_video_mode
 call load_gdt
 call enter_protected_mode
@@ -65,6 +64,39 @@ call load_idt
 call load_tss_register
 
 jmp CODE_SEG:kernel_start
+
+get_memory_map:
+
+  mov ebx, 0
+  mov edx, 0
+  mov di, MEMORY_MAP
+
+  get_memory_map_rec:
+    cmp ebx, 0
+    je get_memory_map_gate
+    jmp get_memory_map_call
+
+  get_memory_map_gate:
+    cmp edx, 0
+    jne get_memory_map_end
+    jmp get_memory_map_call
+
+  get_memory_map_call:
+    mov eax, 0xE820
+    mov ecx, 24
+    mov edx, 0x534D4150
+    int 0x15
+    
+    ;jc kernel_load_error
+    ;cmp eax, 0x534D4150
+    ;jne kernel_load_error
+    
+    add di, 24
+    jmp get_memory_map_rec
+
+  get_memory_map_end:
+    mov [di], dword 44
+    ret
 
 load_tss_register:
 	mov ax, 24d
@@ -154,7 +186,7 @@ kernel_start:
 	mov fs, eax
 	mov gs, eax
 
-	mov ebp, 0xF000 ; 0x8200 + 3072 bytes
+	mov ebp, 0x10400 ; 0x8200 + 3072 bytes
 	mov esp, ebp
 
 	sti
@@ -166,7 +198,7 @@ kernel_start:
 
 CODE_SEG equ kernel_code-gdt
 DATA_SEG equ kernel_data-gdt
-
+MEMORY_MAP equ 0x8000
 
 
 tss: 

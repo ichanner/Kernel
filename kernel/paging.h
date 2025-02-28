@@ -41,12 +41,29 @@ typedef struct {
 
 }  PageTableEntry;
 
+
+typedef struct {
+
+	unsigned int base_addr_lower;
+	unsigned int base_addr_upper;
+	unsigned int length_lower;
+	unsigned int length_upper;
+	unsigned int region_type;
+	unsigned int region_extended;
+
+} MemoryMapEntry;
+
 typedef unsigned int page_t;
 
-int frame_bitmap[RAM_SIZE/(FRAME_SIZE*BITMAP_SIZE)];
-int frame_index;
+//int frame_bitmap[RAM_SIZE/(FRAME_SIZE*BITMAP_SIZE)];
 
-int lru_scores[RAM_SIZE/FRAME_SIZE]; // each score should be an int 
+int* frame_bitmap;
+int frame_index;
+int* lru_scores;
+int lru_pte_index;
+int lru_pde_index;
+
+//int lru_scores[RAM_SIZE/FRAME_SIZE]; // each score should be an int 
 
 PageDirectoryEntry* page_directory;
 

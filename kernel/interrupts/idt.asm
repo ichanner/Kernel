@@ -22,7 +22,7 @@ isr_14:
 
 	add esp, 12d
 
-	;pop eax
+;	pop eax
 
 	sti
 
@@ -50,6 +50,8 @@ irq_32:
 
     mov al, 0x20
     out 0x20, al
+
+;    call calculateLRU
 
     call contextSwitch
 

@@ -78,11 +78,11 @@ void processE(){
 
 void main() {
 
+
 	char* msg = "Welcome to Channer OS\0";
 
 	print(msg);	
 	println();
-
 
 	ProcessControlBlock pcbA;
 	ProcessControlBlock pcbB;
@@ -95,8 +95,12 @@ void main() {
 	createProcess(&processC, &pcbC);
 	createProcess(&processD, &pcbD);
 	createProcess(&processE, &pcbE);
-
+	
+	//initScheduler();
+	
 	initPaging();
+
+
 /*
 	for(int i = 0; i < 10; i++){
 	
@@ -109,14 +113,21 @@ void main() {
 		println();
 		printi(memory[4095]);  // Access the first entry of the second page table
 	}
-*/
+	*/
 
+	//disable_interrupts();
+
+	initATA();
 
 	unsigned short* write_buffer = (unsigned short*)alloc(512);
 
-	//write(1, 50, write_buffer);
 
-	unsigned short* result = read(1, 50);
+	//writeATA(1, 50, write_buffer, 0);
+
+	unsigned short* result = readATA(1, 50, 0);
+
+	//	initDisk();
+
 
 //		clearScreen();
 
@@ -133,11 +144,10 @@ void main() {
 
 		println();
 	}
+	
+	//enable_interrupts();
 
 
-
-
-	//initScheduler();
 
 //	int* memory = (int*)alloc(800);
 
