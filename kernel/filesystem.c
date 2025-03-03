@@ -1,3 +1,0 @@
-//TODO
-
-// edit, create, delete

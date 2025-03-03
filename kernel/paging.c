@@ -140,7 +140,7 @@ int getFrame(int frame_index){
     
     int remainder = frame_index % BITMAP_SIZE;
     
-    int frame = frame_bitmap[frame_index/BITMAP_SIZE] >> remainder;
+    int frame = (frame_bitmap[frame_index/BITMAP_SIZE] >> remainder) & 0x1;
     
     return frame;
 }

@@ -4,7 +4,7 @@
 #include "./interrupts/interrupt_handlers.c"
 #include "./paging.c"
 #include "./ata.c"
-
+#include "./fs.c"
 void test(){
 
 	print("test");
@@ -101,6 +101,7 @@ void main() {
 	initPaging();
 
 
+
 /*
 	for(int i = 0; i < 10; i++){
 	
@@ -119,12 +120,20 @@ void main() {
 
 	initATA();
 
-	unsigned short* write_buffer = (unsigned short*)alloc(512);
+	
 
 
-	//writeATA(1, 50, write_buffer, 0);
 
-	unsigned short* result = readATA(1, 50, 0);
+//	unsigned short* write_buffer = (unsigned short*)alloc(512);
+//	write_buffer[0] = 1;
+
+//	writeATA(1, 50, write_buffer, disks[0]);
+
+	test_fs();
+
+	//unsigned short* result = readATA(1, 50, disks[0]);
+
+
 
 	//	initDisk();
 
@@ -137,13 +146,14 @@ void main() {
 	//7D0A
 
 
-
+/*
 	for(int i = 0; i < 256; i++){
 
 		printi(result[i]);
 
 		println();
 	}
+	*/
 	
 	//enable_interrupts();
 

@@ -10,7 +10,7 @@
 */
 
 void diskDebug(unsigned short disk_id, bool is_secondary, char* msg){
-
+/*
 	println();
 
 	if(disk_id == 0xA0){
@@ -32,6 +32,7 @@ void diskDebug(unsigned short disk_id, bool is_secondary, char* msg){
 	}
 
 	print(msg);
+	*/
 }
 
 
@@ -192,9 +193,7 @@ void pollATA(bool no_drq_needed, unsigned short port_base) {
 
 }
 
-unsigned short* readATA(int sectors, unsigned int LBA, int disk_index){
-
-	disk_t disk = disks[disk_index];
+unsigned short* readATA(int sectors, unsigned int LBA, disk_t disk){
 
 	unsigned short port_base = disk.port_base;
 	unsigned short disk_id = disk.disk_id;
@@ -222,6 +221,7 @@ unsigned short* readATA(int sectors, unsigned int LBA, int disk_index){
 		1111 0000 = 0xF0  slave
 		
 	*/
+
 	outb(MSB_LBA | (disk_id == 0xA0 ? 0xE0 : 0xF0), port_base + 6); 
 
 	//send read command 0x20 to 0x1F7
@@ -230,9 +230,6 @@ unsigned short* readATA(int sectors, unsigned int LBA, int disk_index){
 
 	pollATA(false, port_base);
 
-	unsigned char status = inb(port_base + 7); 
-
-	print("ready");
 
 	unsigned short* buffer = (unsigned short*)alloc(sectors * 512);
  	
@@ -242,18 +239,17 @@ unsigned short* readATA(int sectors, unsigned int LBA, int disk_index){
 
 		// read one word from 0x1F0
 		buffer[j] = inw(port_base);
+
+
 	}
 
-	print("finsihed");
 	
 	return buffer;
 	
 
 }
 
-void writeATA(int sectors, unsigned int LBA, unsigned short* buffer, int disk_index){
-
-	disk_t disk = disks[disk_index];
+void writeATA(int sectors, unsigned int LBA, void* buffer, disk_t disk){
 
 	unsigned short port_base = disk.port_base;
 	unsigned short disk_id = disk.disk_id;
@@ -279,9 +275,14 @@ void writeATA(int sectors, unsigned int LBA, unsigned short* buffer, int disk_in
 
 	pollATA(false, port_base);
 
-	for(int j = 0; j < sizeof(buffer)/sizeof(buffer[0]); j++){
+	unsigned short* buffer_wrd = (unsigned short*)buffer;
 
-		unsigned short word = buffer[j];
+	for(int j = 0; j < (sectors*512)/2; j++){
+
+		unsigned short word = buffer_wrd[j];
+
+	//	printi(word);
+	//	print(" ");
 
 		outw(word, port_base);
 	}
