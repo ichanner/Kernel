@@ -1,7 +1,9 @@
 int heap_address = 0x100000;
 
-//int heap_address = 0x400000;
+void initHeap(unsigned int addr){
 
+	heap_address = addr;
+}
 
 //unit is in bytes
 void* alloc(int size){

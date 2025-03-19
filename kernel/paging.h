@@ -57,6 +57,7 @@ typedef unsigned int page_t;
 
 //int frame_bitmap[RAM_SIZE/(FRAME_SIZE*BITMAP_SIZE)];
 
+int total_ram;
 int* frame_bitmap;
 int frame_index;
 int* lru_scores;

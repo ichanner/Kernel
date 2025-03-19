@@ -1,4 +1,9 @@
+
+
 //Dev debug function
+
+
+#ifdef thing
 
 #include "./disk.c"
 
@@ -10,6 +15,7 @@
 */
 
 void diskDebug(unsigned short disk_id, bool is_secondary, char* msg){
+
 /*
 	println();
 
@@ -32,7 +38,7 @@ void diskDebug(unsigned short disk_id, bool is_secondary, char* msg){
 	}
 
 	print(msg);
-	*/
+*/	
 }
 
 
@@ -100,6 +106,22 @@ void identifyATADisk(unsigned short disk_id, bool is_secondary, int index){
 	println();
 
 	unsigned int combined_sector_count;
+	unsigned int data_region = 60; //temporary 
+	unsigned char is_28_bit = 0;
+
+
+	if(driver_info[88] & (1 << 8)){
+
+		diskDebug(disk_id, is_secondary,"UDMA mode");
+	}
+	else if(driver_info[88] & (1 << 3)){
+
+		diskDebug(disk_id, is_secondary,"Multiword DMA mode");
+	}
+	else{
+
+		diskDebug(disk_id, is_secondary,"PIO mode");
+	}
 
 	if(driver_info[83] & 0x200) {
 
@@ -120,13 +142,14 @@ void identifyATADisk(unsigned short disk_id, bool is_secondary, int index){
 	}
 	else {
 
-		diskDebug(disk_id, is_secondary, "Supports 48 bit addressing");
+		diskDebug(disk_id, is_secondary, "Supports 28 bit addressing");
 		
 		// get word 60 and 61 
 
 		unsigned short lower = driver_info[60];
 		unsigned int upper = driver_info[61] << 16;
-		
+			
+		is_28_bit = 1;
 		combined_sector_count = upper | lower;
 
 		diskDebug(disk_id, is_secondary, "Sector Count: ");
@@ -135,7 +158,7 @@ void identifyATADisk(unsigned short disk_id, bool is_secondary, int index){
 
 	}
 
-	createDisk(port_base, disk_id, combined_sector_count, index);
+	createDisk(port_base, disk_id, combined_sector_count, index, data_region, is_28_bit);
 }
 
 void initATA(){
@@ -295,3 +318,5 @@ void writeATA(int sectors, unsigned int LBA, void* buffer, disk_t disk){
 
 
 }
+
+#endif

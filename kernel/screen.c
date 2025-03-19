@@ -82,6 +82,22 @@ int getNumberOfDigits(int number){
 	return counter;
 }
 
+
+void printb(int number){
+
+	for(int i = 32; i >= 0; i--){
+
+		if((1 << i)  & number){
+
+			print("1");
+		}
+		else{
+
+			print("0");
+		}
+	}
+}
+
 void printi(int number){
 
 	if(number == 0){

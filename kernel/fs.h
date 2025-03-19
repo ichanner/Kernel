@@ -2,16 +2,15 @@
 
 typedef struct {
 
-	char* file_name;
+	char* name;
 	int a[120];
-
-	unsigned int file_size;
+	unsigned int size;
 
 } meta_t;
 
 typedef struct {
 
-		int a[20];
+	int a[20];
 
 	unsigned int start;
 	unsigned int blocks;
@@ -27,7 +26,6 @@ typedef struct {
 typedef struct {
 
 	meta_t* file_meta;
-	//char* a;
 	entry_t entries[(BLOCK_SIZE-sizeof(meta_t))/sizeof(entry_t)];
 
 } inode_t;

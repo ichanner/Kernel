@@ -25,6 +25,7 @@ build: $(BOOTLOADER) $(KERNEL) $(KERNEL_ENTRY)
 	dd if=$(LINKED_KERNEL) of=$(FINAL_IMAGE) bs=512 seek=1 conv=notrunc
 	dd if=$(SUM2) of=$(FINAL_IMAGE) bs=512 seek=50 conv=notrunc
 
+
 #sudo dd if=$(FINAL_IMAGE) of=/dev/sdb bs=4M status=progress
 
 clean:

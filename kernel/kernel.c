@@ -3,8 +3,14 @@
 #include "./process.c";
 #include "./interrupts/interrupt_handlers.c"
 #include "./paging.c"
-#include "./ata.c"
+
+
+#include "./drive.c"
+#include "./drivers/ata/ata.c"
+#include "./drivers/ata/ata_pio.c"
 #include "./fs.c"
+
+
 void test(){
 
 	print("test");
@@ -79,11 +85,12 @@ void processE(){
 void main() {
 
 
-	char* msg = "Welcome to Channer OS\0";
+	char* msg = "Welcome to Channer OS";
 
 	print(msg);	
 	println();
 
+/*
 	ProcessControlBlock pcbA;
 	ProcessControlBlock pcbB;
 	ProcessControlBlock pcbC;
@@ -95,43 +102,93 @@ void main() {
 	createProcess(&processC, &pcbC);
 	createProcess(&processD, &pcbD);
 	createProcess(&processE, &pcbE);
-	
-	//initScheduler();
-	
+
+	initScheduler();
+*/
+
 	initPaging();
+
+	initATA();
+	
+	//char* test = (char*)allocContigousFrames(1);
+
+	unsigned short* test = read_ATA_DMA(1, 50, drives[0]);
+
+	println();
+
+	for(int i = 0; i < 512*1; i++){
+
+		printi(test[i]);
+		print(" ");
+	}
+
+	//test_fs();
+
+ 
+//	unsigned int r = pciConfigReadDWord(0, 1, 1, 0x4);
+
+//	r |= 0x4;
+
+//	pciConfigWriteDword(0, 1, 1, 0x4, r);
+
+	//test_fs();		
+
+	/*
+
+	char* test = (char*)allocContigousFrames(1);
+	
+	read(2, 50, test, disks[0]);
+
+	for(int i = 0; i < 512*2; i++){
+
+		printi(test[i]);
+	}
+
+
+	*/
+	
+/*
+
+	int size = 512*24;
+	
+	char* buffer = (char*)alloc(size);
+
+	for(int i = 0; i < ceil(size/4096); i++){
+
+		println();
+
+		print("test: ");
+
+		printi(virtAddressToPhysAddress(buffer + (i * 4096)));
+	}
+*/
 
 
 
 /*
-	for(int i = 0; i < 10; i++){
+
+	for(int i = 0; i < 100; i++){
 	
 		int* memory = (int*)alloc(4096);
 
 		memory[4095] = 20;
 
-		//memory[4095] = 20;
+	//	print("Phys Address: ");
+	//	printi(virtAddressToPhysAddress(memory[4095]));
 
-		println();
+	//	println();
+
 		printi(memory[4095]);  // Access the first entry of the second page table
 	}
-	*/
+*/
 
-	//disable_interrupts();
+/*
+	unsigned short* write_buffer = (unsigned short*)alloc(512);
+	write_buffer[0] = 1;
 
-	initATA();
+	writeATA(1, 50, write_buffer, disks[0]);
 
-	
-
-
-
-//	unsigned short* write_buffer = (unsigned short*)alloc(512);
-//	write_buffer[0] = 1;
-
-//	writeATA(1, 50, write_buffer, disks[0]);
-
-	test_fs();
-
-	//unsigned short* result = readATA(1, 50, disks[0]);
+	unsigned short* result = readATA(1, 50, disks[0]);
 
 
 
@@ -165,6 +222,21 @@ void main() {
 
 	//unsigned short* buffer = read(100, 50);
 
+
+/*
+
+
+	int* memory = (int*)alloc(4096);
+
+	memory[0] = 5;
+	memory[1] = 3;
+
+	printi(virtAddressToPhysAddress(memory)); 
+
+	println();
+	printi(memory); 
+
+*/
 
 
 

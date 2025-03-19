@@ -1,0 +1,103 @@
+
+
+
+ATA bus 
+
+
+                   +--------------------+
+                   |        CPU         |
+                   +--------------------+
+                              |
+                              | (I/O Reads/Writes)
+                              v
+                   +--------------------+
+                   |  ATA Controller    |
+                   +--------------------+
+                        |        |
+          --------------+        +----------------
+          |                                 |
+          v                                 v
+  +----------------+                 +----------------+
+  | Primary ATA Bus|                 | Secondary ATA Bus|
+  +----------------+                 +----------------+
+        |      |                            |      |
+        |      |                            |      |
+        v      v                            v      v
+  +-----------+  +-----------+        +-----------+  +-----------+
+  | Master    |  | Slave     |        | Master    |  | Slave     |
+  | HDD/SSD   |  | HDD/SSD   |        | HDD/SSD   |  | HDD/SSD   |
+  +-----------+  +-----------+        +-----------+  +-----------+
+
+
+
+CPU communicates with the ATA controller using in/out commands
+
+ATA manages communication between cpu and hard drives
+
+Primary ATA Bus (0x1F0 - 0x1F7) connects to two hard drives Master Drive and Slave Drvie
+
+Secondary ATA Bus (0x170 - 0x177) connects to two hard drvies Master Drive and Slave Drive
+
+CPU sends IO commands (0x1F0 - 0x1F7, 0x3F6) to communicate with Primary ATA Bus ports 
+CPU sends IO commands (0x170 - 0x17,  0x376) to communicate with Primary ATA Bus ports 
+
+the master slave selection is done using port 0x1F6  (0xE0 for Master, 0xF0 for Slave).
+
+
+
+CHS vs LBA scheme:
+
+
+
+Structure of a LBA - Logical Block Address:
+
+	LBA treats the disk as a continous array of sectors (sector #0, sector #1 ...)
+	Each sector is 512 bytes
+
+
+	An LBA is either a 32 bit or a 48 bit integer that represents the sector number we start at to read or write
+
+		for 32 bit lba :
+
+			2^32 * 512 = 2TB of possible space
+
+		for 48 bit lba:
+
+			2^48 * 512 = 128 petabytes 
+
+to read (LBA): 
+
+0x1F0 is the data port - Read/Write sector data (16-bit at a time).
+0x1F1 is the error port - Read: Returns error codes (bad sector, no media, etc.).- Write: Set drive features (e.g., enable caching).
+0x1F2 is the number of sectors to transfer 
+0x1F3 is Bits 0-7 from the Logical Block Address
+0x1F4 is Bits 8-15 from the Logical Block Address
+0x1F5 is Bits 16-23 from the Logical Block Address
+0x1F6:
+
+	Bits 0-3 is Bits 24-27 from the Logical Block Address
+	Bit 4 determines which drive to use (0=Master, 1=Slave)
+	Bit 5 is always 1 
+	Bit 6 is set to 1 for LBA mode 0 for CHS mode 
+	Bit 7 is always 1 
+
+0x1F7 (write) is the command port : 0x20 to read
+
+0x1F7 (read) is the status register - 0x80: Drive busy.- 0x40: Ready.- 0x08: Data request ready (DRQ).- 0x01: Error occurred
+
+	- eseentially we keep reading 0x1F0 until the 8th bit (bit 7) is 0 which means its not busy and the operation was completed 
+
+		- this is known as busy waiting
+
+0x3F6 Device Control Register - 0x00: Normal operation.- 0x04: Disable interrupts.- 0x08: Perform controller reset.
+
+
+
+There are two schemes of hard disk addresses, the older one is known as cylinder-head-sector addressing (CHS) while the newer one which more dominant now is known as logical block addressing (LBA).
+
+ The scheme CHS uses the same concepts of physical structure of hard disk, the address of a given sector on the hard disk should be composed by combining three numbers together, the cylinder (track) that this sector reside on, the sector that we would like to access and the head that is able to access this sector. However, this scheme is obsolete now and LBA is used instead of it.
+
+ In LBA, a logical view of a hard disk is used instead of the physical view. This logical view states that the hard disk is composed of a number of logical blocks with a fixed size, say, n bytes
+
+ These blocks are contagious in a similar way of the main memory and to reach any block you can use its own address,the addresses start from 0, the block right after the first one has the address 1 and so on
+

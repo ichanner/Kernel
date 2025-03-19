@@ -35,22 +35,22 @@
 
 
 
-int getSector(int sector_index, disk_t disk){
+int getSector(int sector_index, drive_t drive){
 
 	int remainder = sector_index % 32;
-	int* bmap = disk.sector_bitmap;
+	int* bmap = drive.sector_bitmap;
 
     int sector = (bmap[sector_index/32] >> remainder) & 0x1;
     
     return sector;
 }	
 
-int getFreeRegionExtent(int curr_sector, disk_t disk){
+int getFreeRegionExtent(int curr_sector, drive_t drive){
 
 	int free_sectors = 1;
 	int free_sector_index = curr_sector + 1;
 
-	while(getSector(free_sector_index, disk) != 1 && free_sector_index < disk.sector_count) {
+	while(getSector(free_sector_index, drive) != 1 && free_sector_index < drive.sector_count) {
 
 		free_sectors++;
 		free_sector_index++;
@@ -59,13 +59,13 @@ int getFreeRegionExtent(int curr_sector, disk_t disk){
 	return free_sectors;
 }
 
-int findFirstFreeSector(disk_t disk){
+int findFirstFreeSector(drive_t drive){
 
 	int curr_sector = 50; // temporary 
 
 	while(true){
 
-		if(getSector(curr_sector, disk) == 0){
+		if(getSector(curr_sector, drive) == 0){
 
 			return curr_sector;
 		}
@@ -76,9 +76,9 @@ int findFirstFreeSector(disk_t disk){
 	
 }
 
-int findContinousRegion(int sectors_needed, disk_t disk) {
+int findContinousRegion(int sectors_needed, drive_t drive) {
 
-	int curr_ptr = disk.data_region; // sector index tracker
+	int curr_ptr = drive.data_region; // sector index tracker
 	int best_fit_ptr = -1;
 	int best_fit_free_region = -1;
 
@@ -86,15 +86,15 @@ int findContinousRegion(int sectors_needed, disk_t disk) {
 
 		// if the curr sector index is beyond physical capacity stop looking
 
-		if(curr_ptr >= disk.sector_count) {
+		if(curr_ptr >= drive.sector_count) {
 
 			break;
 		}
-		else if(getSector(curr_ptr, disk) == 0){
+		else if(getSector(curr_ptr, drive) == 0){
 
 			// when a free sector is found, try to see how far this free region extend
 			
-			int free_region = getFreeRegionExtent(curr_ptr, disk);
+			int free_region = getFreeRegionExtent(curr_ptr, drive);
 
 			// if this free extent can fit what we want and it's smaller than best_fit_free_region then update
 			if(free_region >= sectors_needed && (best_fit_free_region < 0 || best_fit_free_region > free_region)){
@@ -115,7 +115,7 @@ int findContinousRegion(int sectors_needed, disk_t disk) {
 	
 }
 
-void addEntries(inode_t* inode, int free_sectors, int starting_ptr, disk_t disk){
+void addEntries(inode_t* inode, int free_sectors, int starting_ptr, drive_t drive){
 
 	//for initial inode
 	int num_entries = (BLOCK_SIZE-sizeof(meta_t))/sizeof(entry_t); 
@@ -149,7 +149,7 @@ void addEntries(inode_t* inode, int free_sectors, int starting_ptr, disk_t disk)
 				// update this entry table in disk
 				if(entry_table_sector != -1) {
 
-					writeATA(1, entry_table_sector, entries, disk);
+					write_ATA_PIO(1, entry_table_sector, entries, drive);
 				}
 
 				return;
@@ -170,7 +170,7 @@ void addEntries(inode_t* inode, int free_sectors, int starting_ptr, disk_t disk)
 			entry_table->entries[0].start = starting_ptr;
 
 			// find a free sector for it
-			int new_entry_table_sector = findFirstFreeSector(disk);
+			int new_entry_table_sector = findFirstFreeSector(drive);
 
 
 			println();
@@ -179,10 +179,10 @@ void addEntries(inode_t* inode, int free_sectors, int starting_ptr, disk_t disk)
 			println();
 
 			// write entry table to the sector
-			writeATA(1, new_entry_table_sector, entry_table, disk);
+			write_ATA_PIO(1, new_entry_table_sector, entry_table, drive);
 
 			//set as used
-			setSectors(new_entry_table_sector, new_entry_table_sector + 1, 1, disk);
+			setSectors(new_entry_table_sector, new_entry_table_sector + 1, 1, drive);
 
 			// assign last entry to new entryly table
 			entries[num_entries - 1].blocks = 1;
@@ -191,7 +191,7 @@ void addEntries(inode_t* inode, int free_sectors, int starting_ptr, disk_t disk)
 			//update table in disk if its an extent table to point at tail
 			if(entry_table_sector != -1){
 
-				writeATA(1, entry_table_sector, entries, disk);
+				write_ATA_PIO(1, entry_table_sector, entries, drive);
 			}
 
 			return;
@@ -200,7 +200,7 @@ void addEntries(inode_t* inode, int free_sectors, int starting_ptr, disk_t disk)
 
 		    entry_table_sector = entries[num_entries - 1].start;
 
-			entries = (entry_t*)readATA(1, entry_table_sector, disk);
+			entries = (entry_t*)read_ATA_PIO(1, entry_table_sector, drive);
 		}
 		
 		// update number of entries we have to look over 
@@ -214,7 +214,7 @@ void addEntries(inode_t* inode, int free_sectors, int starting_ptr, disk_t disk)
 }
 
 
-inode_t* allocateBlocks(int size, disk_t disk){
+inode_t* allocateBlocks(int size, drive_t drive){
 
 	// 1. Check if there's enough free sectors to store the file
 
@@ -222,9 +222,9 @@ inode_t* allocateBlocks(int size, disk_t disk){
 	int avaliable_sectors = 0;
 	int sectors_needed = ceil(size/512.0);
 
-	for(int i = disk.data_region; i <  disk.sector_count; i++){
+	for(int i = drive.data_region; i <  drive.sector_count; i++){
 
-		if(getSector(i, disk) == 0){
+		if(getSector(i, drive) == 0){
 
 			avaliable_sectors++;
 		}
@@ -246,14 +246,14 @@ inode_t* allocateBlocks(int size, disk_t disk){
 	
 	// 2. See if we can find a contious region of free space using best fit
 
-	int continous_region_ptr = findContinousRegion(sectors_needed, disk);
+	int continous_region_ptr = findContinousRegion(sectors_needed, drive);
 
 	if(continous_region_ptr == -1){
 
 		// 3. A continous free region wasn't found. Use first fit to fill in fragments 
 
 		int sectors_left = sectors_needed;
-		int curr_ptr = disk.data_region;
+		int curr_ptr = drive.data_region;
 
 		print("Couldn't find continous region");
 
@@ -265,11 +265,11 @@ inode_t* allocateBlocks(int size, disk_t disk){
 
 				break;
 			}
-			else if(getSector(curr_ptr, disk) == 0){
+			else if(getSector(curr_ptr, drive) == 0){
 
 				// 4. get the extent of the free region once a free sector is found 
 
-				int free_sectors = getFreeRegionExtent(curr_ptr, disk);
+				int free_sectors = getFreeRegionExtent(curr_ptr, drive);
 
 				println();
 				print(" Free sectors ");
@@ -277,7 +277,7 @@ inode_t* allocateBlocks(int size, disk_t disk){
 
 				// 5. Add entries to the inode
 
-				addEntries(inode, free_sectors, curr_ptr, disk);
+				addEntries(inode, free_sectors, curr_ptr, drive);
 
 				// 6. set inode blocks and increment/decrement
 
@@ -290,23 +290,20 @@ inode_t* allocateBlocks(int size, disk_t disk){
 			}
 		}
 	}
-	else{
+	else {
 
 		print("Found continous region");
 
-
-
-
 		// 3. add entries 
 
-		addEntries(inode, sectors_needed, continous_region_ptr, disk);
+		addEntries(inode, sectors_needed, continous_region_ptr, drive);
 	}
 
 	//write inode to disk 
 
-	int sector_for_inode = findFirstFreeSector(disk);
+	int sector_for_inode = findFirstFreeSector(drive);
 
-	writeATA(1, sector_for_inode, inode, disk);
+	write_ATA_PIO(1, sector_for_inode, inode, drive);
 
 	println();
 	print("Inode allocated at sector ");
@@ -314,12 +311,119 @@ inode_t* allocateBlocks(int size, disk_t disk){
 	println();
 
 
-	setSectors(sector_for_inode, sector_for_inode + 1, 1, disk);
+	setSectors(sector_for_inode, sector_for_inode + 1, 1, drive);
 
 
 	return inode;
 
 }
+
+
+/*
+void createFile(char* data, int size, char* file_name, drive_t drive){
+
+	// 1. Check if there's enough free sectors to store the file
+
+	int avaliable_sectors = 0;
+	int sectors_needed = ceil(size/512.0);
+
+	for(int i = drive.data_region; i <  drive.sector_count; i++){
+
+		if(getSector(i, drive) == 0){
+
+			avaliable_sectors++;
+		}
+	}
+
+	if(avaliable_sectors < sectors_needed) {
+
+		//ERROR: not enough disk space
+
+		return;
+	}
+	
+	//allocate inode and meta and populate meta fields
+
+	inode_t* inode = (inode_t*)alloc(sizeof(inode_t));
+	meta_t* file_meta = (meta_t*)alloc(sizeof(meta_t));
+
+	file_meta->name = file_name;
+	file_meta->size = size;
+	inode->file_meta = file_meta;
+	
+	// 2. See if we can find a contious region of free space using best fit
+
+	int continous_region_ptr = findContinousRegion(sectors_needed, drive);
+
+	if(continous_region_ptr == -1){
+
+		// 3. A continous free region wasn't found. Use first fit to fill in fragments 
+
+		int sectors_left = sectors_needed;
+		int curr_ptr = drive.data_region;
+
+		print("Couldn't find continous region");
+
+		while(1){
+
+			if(sectors_left <= 0){
+
+				// 5. break once all sectors are accounted for
+
+				break;
+			}
+			else if(getSector(curr_ptr, drive) == 0){
+
+				// 4. get the extent of the free region once a free sector is found 
+
+				int free_sectors = getFreeRegionExtent(curr_ptr, drive);
+
+				println();
+				print(" Free sectors ");
+				printi(free_sectors);
+
+
+				writeATA(curr_ptr,  );
+
+				// 5. Add entries to the inode
+
+				addEntries(inode, free_sectors, curr_ptr, drive);
+
+				// 6. set inode blocks and increment/decrement
+
+				sectors_left -= free_sectors;
+				curr_ptr += free_sectors;
+			}
+			else{
+
+				curr_ptr += 1;
+			}
+		}
+	}
+	else {
+
+		print("Found continous region");
+
+		// 3. add entries 
+
+		addEntries(inode, sectors_needed, continous_region_ptr, drive);
+	}
+
+	//write inode to disk 
+
+	int sector_for_inode = findFirstFreeSector(drive);
+
+	writeATA(1, sector_for_inode, inode, drive);
+
+	println();
+	print("Inode allocated at sector ");
+	printi(sector_for_inode);
+	println();
+
+	setSectors(sector_for_inode, sector_for_inode + 1, 1, drive);
+
+}
+*/
 
 
 
@@ -349,9 +453,9 @@ void test_fs(){
 	//Test 1. 1kB file
 	
 	
-	//allocateBlocks(1024, disks[0]);
+	//allocateBlocks(1024, drives[0]);
 
-//	unsigned short* result = readATA(1, 50, disks[0]);
+//	unsigned short* result = readATA(1, 50, drives[0]);
 
 //	inode_t* test = (inode_t*)result;
 
@@ -361,21 +465,21 @@ void test_fs(){
 //	printi(test->entries[0].start);
 //	println();
 
-	setSectors(60, 100, 1, disks[0]);
+	setSectors(60, 100, 1, drives[0]);
 	
 
-	setSectors(60, 61, 0, disks[0]);
-	setSectors(65, 66, 0, disks[0]);
+	setSectors(60, 61, 0, drives[0]);
+	setSectors(65, 66, 0, drives[0]);
 
-	setSectors(70, 71, 0, disks[0]);
-	setSectors(75, 77, 0, disks[0]);
+	setSectors(70, 71, 0, drives[0]);
+	setSectors(75, 77, 0, drives[0]);
 
-	setSectors(80, 81, 0, disks[0]);
-	setSectors(85, 86, 0, disks[0]);
+	setSectors(80, 81, 0, drives[0]);
+	setSectors(85, 86, 0, drives[0]);
 
-	setSectors(90, 91, 0, disks[0]);
+	setSectors(90, 91, 0, drives[0]);
 
-	setSectors(95, 96, 0, disks[0]);
+	setSectors(95, 96, 0, drives[0]);
 
 
 	//leaving us with 7 free sectors 
@@ -384,7 +488,7 @@ void test_fs(){
 
 	for(int i = 50; i < 60; i++){
 
-		printi(getSector(i, disks[0]));
+		printi(getSector(i, drives[0]));
 		print(" ");
 	}
 
@@ -392,7 +496,7 @@ void test_fs(){
 
 	for(int i = 60; i < 100; i++){
 
-		printi(getSector(i, disks[0]));
+		printi(getSector(i, drives[0]));
 		print(" ");
 	}
 	*/
@@ -400,14 +504,14 @@ void test_fs(){
 
 	// Test 2. 1 entry tables
 
-	allocateBlocks(512*8, disks[0]);
+	allocateBlocks(512*8, drives[0]);
 
 
 	print("Meta Bitmap: ");
 
 	for(int i = 50; i < 60; i++){
 
-		printi(getSector(i, disks[0]));
+		printi(getSector(i, drives[0]));
 		print(" ");
 	}
 
@@ -415,7 +519,7 @@ void test_fs(){
 
 	for(int i = 60; i < 100; i++){
 
-		printi(getSector(i, disks[0]));
+		printi(getSector(i, drives[0]));
 		print(" ");
 	}
 
@@ -440,23 +544,22 @@ void test_fs(){
 
 
 
-void setSectors(int sector_start_index, int sector_end_index, int present, disk_t disk){
+void setSectors(int sector_start_index, int sector_end_index, int present, drive_t drive){
 
 
 	for(int i = sector_start_index; i < sector_end_index; i++){
 
 		int remainder = i % 32;
-    	int entry = disk.sector_bitmap[i/32];
+    	int entry = drive.sector_bitmap[i/32];
 
 	    if (present == 1){
     
-	        disk.sector_bitmap[i/32] = entry | (1 << remainder);
+	        drive.sector_bitmap[i/32] = entry | (1 << remainder);
 	    }
 	    else{
 	        
-	        disk.sector_bitmap[i/32] = entry &  ~(1 << remainder);
+	        drive.sector_bitmap[i/32] = entry &  ~(1 << remainder);
 	    }
 	}
 }
-
 
