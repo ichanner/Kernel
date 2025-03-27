@@ -2,12 +2,11 @@
 #include "./screen.c"
 #include "./process.c";
 #include "./interrupts/interrupt_handlers.c"
-#include "./paging.c"
 
+#include "./memory/memory.c"
 
 #include "./drive.c"
 #include "./drivers/ata/ata.c"
-#include "./drivers/ata/ata_pio.c"
 #include "./fs.c"
 
 
@@ -106,23 +105,64 @@ void main() {
 	initScheduler();
 */
 
-	initPaging();
-
-	initATA();
+	initMemory();
 	
-	//char* test = (char*)allocContigousFrames(1);
+	initATA();
 
-	unsigned short* test = read_ATA_DMA(1, 50, drives[0]);
+
+
+
+/*
+	print("HELLO");
 
 	println();
 
-	for(int i = 0; i < 512*1; i++){
+   setFrame(10, 1);
+
+   setFrame(45, 1);
+
+   print("he ");
+   printi(findFreeFrame());
+   println();
+   printi(getFrame(259));
+*/
+   println();
+	
+//	char* write = (char*)kalloc(512);
+
+//	write_ATA_DMA(1, 51, write, drives[0]);
+
+
+
+   
+	//unsigned short* test = read_ATA_DMA(1, 50, drives[0]);
+
+
+   /*
+   unsigned short* test = drives[0].read(1, 50, drives[0]);
+
+	clearScreen();
+	
+	println();
+
+	for(int i = 0; i < 512/2; i++){
 
 		printi(test[i]);
 		print(" ");
+	
 	}
 
-	//test_fs();
+	print("STOP");
+*/
+	
+
+	//print_free_list();
+
+
+
+
+
+	test_fs();
 
  
 //	unsigned int r = pciConfigReadDWord(0, 1, 1, 0x4);
@@ -164,24 +204,24 @@ void main() {
 */
 
 
-
 /*
 
-	for(int i = 0; i < 100; i++){
+	for(int i = 0; i < 1025; i++){
 	
 		int* memory = (int*)alloc(4096);
 
-		memory[4095] = 20;
+		memory[4095] = 2;
 
 	//	print("Phys Address: ");
 	//	printi(virtAddressToPhysAddress(memory[4095]));
 
 	//	println();
 
+		print("");
 		printi(memory[4095]);  // Access the first entry of the second page table
 	}
-*/
 
+*/
 /*
 	unsigned short* write_buffer = (unsigned short*)alloc(512);
 	write_buffer[0] = 1;

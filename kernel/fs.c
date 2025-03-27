@@ -1,6 +1,7 @@
 #include <stdbool.h>
 #include "fs.h"
 #include "math.c"
+
 /*
 	TODO:
 	- filesystem
@@ -34,6 +35,37 @@
 */
 
 
+void* alloc_buffer(unsigned int size, drive_t drive) {
+
+	if(drive.dma_mode != -1) {
+
+		void* buffer = allocPages(size);
+
+		identityMapPages(buffer, size, 1, 0, 0, 1);
+
+		return buffer;
+	}
+
+	return kalloc(size);
+}
+
+void setSectors(int sector_start_index, int sector_end_index, int present, drive_t drive){
+
+	for(int i = sector_start_index; i < sector_end_index; i++){
+
+		int remainder = i % 32;
+    	int entry = drive.sector_bitmap[i/32];
+
+	    if (present == 1){
+    
+	        drive.sector_bitmap[i/32] = entry | (1 << remainder);
+	    }
+	    else{
+	        
+	        drive.sector_bitmap[i/32] = entry &  ~(1 << remainder);
+	    }
+	}
+}
 
 int getSector(int sector_index, drive_t drive){
 
@@ -75,7 +107,6 @@ int findFirstFreeSector(drive_t drive){
 
 	
 }
-
 int findContinousRegion(int sectors_needed, drive_t drive) {
 
 	int curr_ptr = drive.data_region; // sector index tracker
@@ -115,55 +146,56 @@ int findContinousRegion(int sectors_needed, drive_t drive) {
 	
 }
 
-void addEntries(inode_t* inode, int free_sectors, int starting_ptr, drive_t drive){
+void addEntries(char* data, inode_t* inode, int free_sectors, int starting_ptr, drive_t drive){
 
 	//for initial inode
-	int num_entries = (BLOCK_SIZE-sizeof(meta_t))/sizeof(entry_t); 
+	
+	#ifdef DEV 
+		int num_entries = DEV;
+	#else 
+		int num_entries = (BLOCK_SIZE-sizeof(meta_t))/sizeof(entry_t); 
+	#endif
+	
 	int entry_table_sector = -1; // inode is already written to disk, no need to write it again
 
 	entry_t* entries = inode->entries;
 
 	while(true) { 
 
-		print(" Num entries: ");
-		printi(num_entries);
-		print(" ");
-
-		for(int i = 0; i < num_entries - 1; i++) {
+		for(int i = (entry_table_sector != -1 ? 1 : 0); i < num_entries - 1; i++) {
 
 			if(entries[i].blocks == 0){
 
-				 //avaliable entry found
-
-				print(" ");
-
-				print("Extent entry found at ");
-
+				print(" Extent entry found at ");
 				printi(i);
-
 				print(" ");
 
 				entries[i].blocks = free_sectors;
 				entries[i].start = starting_ptr;
 
+				drive.write(free_sectors, starting_ptr, data, drive);
+
+				setSectors(starting_ptr, starting_ptr + free_sectors, 1, drive);
+
 				// update this entry table in disk
 				if(entry_table_sector != -1) {
 
-					write_ATA_PIO(1, entry_table_sector, entries, drive);
+					drive.write(1, entry_table_sector, entries, drive);
 				}
+
+				//free(entries);
 
 				return;
 			}
 		}
 
-		println();
-		print("Going to next table");
+		print(" -> Going to next table ->");
 
 		// if next entry table doesn't exist in last entry
 		if(entries[num_entries - 1].blocks == 0) {
 
 			// allocate new entry table
-			entry_table_t* entry_table = (entry_table_t*)alloc(sizeof(entry_table_t));
+			entry_table_t* entry_table = (entry_table_t*)alloc_buffer(sizeof(entry_table_t), drive);
 
 			// asign first entry in table
 			entry_table->entries[0].blocks = free_sectors;
@@ -179,7 +211,7 @@ void addEntries(inode_t* inode, int free_sectors, int starting_ptr, drive_t driv
 			println();
 
 			// write entry table to the sector
-			write_ATA_PIO(1, new_entry_table_sector, entry_table, drive);
+			drive.write(1, new_entry_table_sector, entry_table, drive);
 
 			//set as used
 			setSectors(new_entry_table_sector, new_entry_table_sector + 1, 1, drive);
@@ -191,8 +223,10 @@ void addEntries(inode_t* inode, int free_sectors, int starting_ptr, drive_t driv
 			//update table in disk if its an extent table to point at tail
 			if(entry_table_sector != -1){
 
-				write_ATA_PIO(1, entry_table_sector, entries, drive);
+				drive.write(1, entry_table_sector, entries, drive);
 			}
+
+			//free(entries);
 
 			return;
 		}
@@ -200,25 +234,23 @@ void addEntries(inode_t* inode, int free_sectors, int starting_ptr, drive_t driv
 
 		    entry_table_sector = entries[num_entries - 1].start;
 
-			entries = (entry_t*)read_ATA_PIO(1, entry_table_sector, drive);
+			entries = (entry_t*)drive.read(1, entry_table_sector,  drive);
 		}
 		
 		// update number of entries we have to look over 
 
 
-		num_entries = BLOCK_SIZE/sizeof(entry_t);
-
+		#ifndef DEV  
+			num_entries = BLOCK_SIZE/sizeof(entry_t);
+		#endif
 
 	}
 
 }
 
-
-inode_t* allocateBlocks(int size, drive_t drive){
+inode_t* createFile(char* data, char* file_name, int size, drive_t drive){
 
 	// 1. Check if there's enough free sectors to store the file
-
-
 	int avaliable_sectors = 0;
 	int sectors_needed = ceil(size/512.0);
 
@@ -238,12 +270,12 @@ inode_t* allocateBlocks(int size, drive_t drive){
 	}
 	
 
-	inode_t* inode = (inode_t*)alloc(sizeof(inode_t));
+	inode_t* inode = (inode_t*)alloc_buffer(sizeof(inode_t), drive);
 
-	//inode->a = "Hello";
-
-
+	inode->meta.name = file_name;
+	inode->meta.size = size;
 	
+
 	// 2. See if we can find a contious region of free space using best fit
 
 	int continous_region_ptr = findContinousRegion(sectors_needed, drive);
@@ -254,6 +286,7 @@ inode_t* allocateBlocks(int size, drive_t drive){
 
 		int sectors_left = sectors_needed;
 		int curr_ptr = drive.data_region;
+		int chunk_offset = 0;
 
 		print("Couldn't find continous region");
 
@@ -277,12 +310,20 @@ inode_t* allocateBlocks(int size, drive_t drive){
 
 				// 5. Add entries to the inode
 
-				addEntries(inode, free_sectors, curr_ptr, drive);
+				char* split_data = (char*)alloc_buffer(512 * free_sectors, drive);
+			
+				for(int i = chunk_offset; i <  512 * free_sectors; i++) {
+
+					split_data[i] = *( data + i );
+				}
+
+				addEntries(split_data, inode, free_sectors, curr_ptr, drive);
 
 				// 6. set inode blocks and increment/decrement
 
 				sectors_left -= free_sectors;
 				curr_ptr += free_sectors;
+				chunk_offset += (free_sectors * 512);
 			}
 			else{
 
@@ -294,29 +335,223 @@ inode_t* allocateBlocks(int size, drive_t drive){
 
 		print("Found continous region");
 
+			println();
+			print(" Free sectors ");
+			printi(sectors_needed);
+
 		// 3. add entries 
 
-		addEntries(inode, sectors_needed, continous_region_ptr, drive);
+		addEntries(data, inode, sectors_needed, continous_region_ptr, drive);
 	}
 
 	//write inode to disk 
 
 	int sector_for_inode = findFirstFreeSector(drive);
 
-	write_ATA_PIO(1, sector_for_inode, inode, drive);
+	drive.write(1, sector_for_inode, inode, drive);
 
 	println();
 	print("Inode allocated at sector ");
 	printi(sector_for_inode);
 	println();
 
-
 	setSectors(sector_for_inode, sector_for_inode + 1, 1, drive);
 
+	//free(data);
+	//free(file_meta);
 
 	return inode;
 
 }
+
+
+void readFile(inode_t* inode, drive_t drive) {
+
+	#ifdef DEV 
+		int num_entries = DEV;
+	#else 
+		int num_entries = (BLOCK_SIZE-sizeof(meta_t))/sizeof(entry_t); 
+	#endif
+	
+	int entry_table_sector = -1; 
+
+	entry_t* entries = inode->entries;
+
+	while(true) { 
+
+		for(int i = 0; i < num_entries - 1; i++) {
+			/*
+			println();
+			printi(entries[i].blocks);
+			print(" ");
+			printi(entries[i].start);
+			println();
+			*/
+
+			
+			char* buffer = (char*)drive.read(entries[i].blocks, entries[i].start, drive);
+
+			
+			for(int j = 0; j < ((int)entries[i].blocks * 512); j++){
+
+				printi(buffer[j]);
+				
+				print(" ");
+			}
+		
+		}
+
+		if(entries[num_entries - 1].blocks != 0) {
+
+		    entry_table_sector = entries[num_entries - 1].start;
+			entries = (entry_t*)drive.read(1, entry_table_sector,  drive);
+			
+			#ifndef DEV
+				num_entries = BLOCK_SIZE/sizeof(entry_t);
+			#endif
+		}
+		else{
+
+			break;
+		}
+		
+		
+
+	}
+
+}
+
+void test_fs(){
+
+	clearScreen();
+
+	/*
+		
+		Test continous File
+		Test File with 2 entries 
+		Test a file that extends into a entry table 
+		Test a file that extends into two entry tables 
+		Test a too big file
+
+	*/
+
+
+	/*
+		
+		50 - 60: metadata
+
+		60 - 100: data 
+
+	*/
+
+	//Test 1. 1kB file
+	
+	
+	//allocateBlocks(1024, drives[0]);
+
+//	unsigned short* result = readATA(1, 50, drives[0]);
+
+//	inode_t* test = (inode_t*)result;
+
+//	println();
+//	printi(test->entries[0].blocks);
+//	println();
+//	printi(test->entries[0].start);
+//	println();
+
+	
+	setSectors(60, 100, 1, drives[0]);
+	
+
+	setSectors(60, 61, 0, drives[0]);
+	setSectors(65, 66, 0, drives[0]);
+
+	setSectors(70, 71, 0, drives[0]);
+	setSectors(75, 77, 0, drives[0]);
+
+	setSectors(80, 81, 0, drives[0]);
+	setSectors(85, 86, 0, drives[0]);
+
+	setSectors(90, 91, 0, drives[0]);
+
+	setSectors(95, 96, 0, drives[0]);
+	
+/*
+
+	//leaving us with 7 free sectors 
+
+	print("Meta Bitmap: ");
+
+	for(int i = 50; i < 60; i++){
+
+		printi(getSector(i, drives[0]));
+		print(" ");
+	}
+
+	print("Data Bitmap: ");
+
+	for(int i = 60; i < 100; i++){
+
+		printi(getSector(i, drives[0]));
+		print(" ");
+	}
+	
+*/
+
+	// Test 2. 1 entry tables
+
+	char* data = (char*)kalloc(512*10);
+
+	memset(data, 512*10, 2);
+
+	inode_t* inode = createFile(data,"Hello", 512*10, drives[0]);
+
+
+	print("Meta Bitmap: ");
+
+	for(int i = 50; i < 60; i++){
+
+		printi(getSector(i, drives[0]));
+		print(" ");
+	}
+
+	print("Data Bitmap: ");
+
+	for(int i = 60; i < 100; i++){
+
+		printi(getSector(i, drives[0]));
+		print(" ");
+	}
+	
+
+	clearScreen();
+
+	readFile(inode, drives[0]);
+
+
+	// Test 3. 2 entry tables 
+
+
+	// Test 4. File too big
+
+	/*
+	for(int i = 0; i < 256; i++){
+
+		printi(result[i]);
+
+		print(" ");
+	}
+	*/
+
+
+}
+
+
+
+
+
+
+
 
 
 /*
@@ -424,142 +659,4 @@ void createFile(char* data, int size, char* file_name, drive_t drive){
 
 }
 */
-
-
-
-void test_fs(){
-
-	clearScreen();
-
-	/*
-		
-		Test continous File
-		Test File with 2 entries 
-		Test a file that extends into a entry table 
-		Test a file that extends into two entry tables 
-		Test a too big file
-
-	*/
-
-
-	/*
-		
-		50 - 60: metadata
-
-		60 - 100: data 
-
-	*/
-
-	//Test 1. 1kB file
-	
-	
-	//allocateBlocks(1024, drives[0]);
-
-//	unsigned short* result = readATA(1, 50, drives[0]);
-
-//	inode_t* test = (inode_t*)result;
-
-//	println();
-//	printi(test->entries[0].blocks);
-//	println();
-//	printi(test->entries[0].start);
-//	println();
-
-	setSectors(60, 100, 1, drives[0]);
-	
-
-	setSectors(60, 61, 0, drives[0]);
-	setSectors(65, 66, 0, drives[0]);
-
-	setSectors(70, 71, 0, drives[0]);
-	setSectors(75, 77, 0, drives[0]);
-
-	setSectors(80, 81, 0, drives[0]);
-	setSectors(85, 86, 0, drives[0]);
-
-	setSectors(90, 91, 0, drives[0]);
-
-	setSectors(95, 96, 0, drives[0]);
-
-
-	//leaving us with 7 free sectors 
-/*
-	print("Meta Bitmap: ");
-
-	for(int i = 50; i < 60; i++){
-
-		printi(getSector(i, drives[0]));
-		print(" ");
-	}
-
-	print("Data Bitmap: ");
-
-	for(int i = 60; i < 100; i++){
-
-		printi(getSector(i, drives[0]));
-		print(" ");
-	}
-	*/
-
-
-	// Test 2. 1 entry tables
-
-	allocateBlocks(512*8, drives[0]);
-
-
-	print("Meta Bitmap: ");
-
-	for(int i = 50; i < 60; i++){
-
-		printi(getSector(i, drives[0]));
-		print(" ");
-	}
-
-	print("Data Bitmap: ");
-
-	for(int i = 60; i < 100; i++){
-
-		printi(getSector(i, drives[0]));
-		print(" ");
-	}
-
-
-
-	// Test 3. 2 entry tables 
-
-
-	// Test 4. File too big
-
-	/*
-	for(int i = 0; i < 256; i++){
-
-		printi(result[i]);
-
-		print(" ");
-	}
-	*/
-
-
-}
-
-
-
-void setSectors(int sector_start_index, int sector_end_index, int present, drive_t drive){
-
-
-	for(int i = sector_start_index; i < sector_end_index; i++){
-
-		int remainder = i % 32;
-    	int entry = drive.sector_bitmap[i/32];
-
-	    if (present == 1){
-    
-	        drive.sector_bitmap[i/32] = entry | (1 << remainder);
-	    }
-	    else{
-	        
-	        drive.sector_bitmap[i/32] = entry &  ~(1 << remainder);
-	    }
-	}
-}
 

@@ -1,14 +1,20 @@
 //Dev debug function
 #include "../../pci.c"
 #include "./ata_dma.c"
+#include "./ata_pio.c"
 
 #define DATA_REGION_PORTION 0.6
 
 /*
 	
 	TODO:
+	
+		no interrupt 
+
+		dynamically detect data region and meta region for disk 
 
 		Error handling 
+
 */
 
 void driveDebug(unsigned short drive_id, bool is_secondary, char* msg){
@@ -154,6 +160,8 @@ void identifyATADrive(bool is_master, bool is_secondary, int id){
 	unsigned char is_udma = 0;
 	unsigned int dma_mode = -1;
 	unsigned int sector_count = 0;
+	unsigned short* (*read_func)(int, unsigned int, struct drive);
+	void (*write_func)(int, unsigned int, void*, struct drive);
 
 	//read driver info one word at a time
 
@@ -187,6 +195,7 @@ void identifyATADrive(bool is_master, bool is_secondary, int id){
 
 	}
 
+	//dma_mode = -1;
 	if(dma_mode != -1) {
 
 		setDMAMode(dma_mode, port_base, is_udma);
@@ -195,10 +204,16 @@ void identifyATADrive(bool is_master, bool is_secondary, int id){
 		driveDebug(is_master, is_secondary, is_udma ? "UDMA mode: " : "MWDMA mode: ");
 		printi(dma_mode);
 
+		write_func = write_ATA_DMA;
+		read_func = read_ATA_DMA;
+
 	}
 	else {
 
 		driveDebug(is_master, is_secondary, "PIO mode");
+
+		write_func = write_ATA_PIO;
+		read_func = read_ATA_PIO;
 	}
 
 	if(driver_info[83] & 0x200) {
@@ -226,7 +241,7 @@ void identifyATADrive(bool is_master, bool is_secondary, int id){
 	driveDebug(is_master, is_secondary, "Sector Count: ");
 	printi(sector_count);
 
-	createATADrive(id, port_base, sector_count, sector_count * DATA_REGION_PORTION, dma_mode, is_master, is_28_bit);
+	createATADrive(id, port_base, sector_count, sector_count * DATA_REGION_PORTION, dma_mode, is_master, is_28_bit, read_func, write_func);
 }
 
 void initATA(){

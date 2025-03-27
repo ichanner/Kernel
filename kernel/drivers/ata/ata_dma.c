@@ -3,6 +3,9 @@
 #define BOUNDARY 64*1024
 #define SECTOR_SIZE 512.0
 
+
+
+
 void init_ATA_DMA(int addr) {
 
 	base_addr = addr;
@@ -17,8 +20,11 @@ void DMA_Transfer(int sectors, unsigned int lba, void* buffer, drive_t drive, bo
 	unsigned short port_base = drive.port_base;
 	unsigned int offset = 0;
 	unsigned int prd_entries_count = ceil(size/BOUNDARY);
+	unsigned int prd_table_size = sizeof(prd_entry) * prd_entries_count;
 
-	prd_entry* prd_table = (prd_entry*)allocContigousFrames(sizeof(prd_entry) * prd_entries_count);
+	prd_entry* prd_table = (prd_entry*)allocPages(prd_table_size);
+
+    identityMapPages(prd_table, prd_table_size, 1, 0, 0, 1);
 
 	// Prepare PRD Table
 
@@ -42,18 +48,35 @@ void DMA_Transfer(int sectors, unsigned int lba, void* buffer, drive_t drive, bo
 
 	setPortsATA(lba, sectors, drive);
 
-	outb(drive.is_28_bit ? 0xC8 : 0x25, port_base + 0x7); // send dma transfer command
+	if(is_write){
+
+		outb(drive.is_28_bit ? 0xCA : 0x35, port_base + 0x7); // send dma transfer command
+	}
+	else {
+
+		outb(drive.is_28_bit ? 0xC8 : 0x25, port_base + 0x7); // send dma transfer command
+	}
 
 	outb(is_write ? 0x1 : 0x9, base_addr); //Set the Start bit on the Bus Master Command Register.
+
+	while (inb(base_addr + 0x2) & 0x1) { /* Wait for Active bit to clear */ }
+if (inb(base_addr + 0x2) & 0x2) { /* Interrupt bit set, transfer done */ }
+if (inb(base_addr + 0x2) & 0x4) { /* Error bit set, handle error */ }
+
 }
 
 unsigned short* read_ATA_DMA(int sectors, unsigned int lba, drive_t drive){
 
 	//alocate buffer
 
-	unsigned short* buffer = (unsigned short*)allocContigousFrames(sectors * 512);
+	unsigned int buffer_size = sectors * 512;
 
+	unsigned short* buffer = (unsigned short*)allocPages(buffer_size);
+
+	identityMapPages(buffer, buffer_size, 1, 0, 0, 1);
+		
 	DMA_Transfer(sectors, lba, buffer, drive, false);
+
 
 	return buffer;
 }

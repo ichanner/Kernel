@@ -1,4 +1,4 @@
-int heap_address = 0x100000;
+int heap_address;
 
 void initHeap(unsigned int addr){
 
@@ -16,6 +16,7 @@ void* alloc(int size){
 }
 
 
+//REMOVE
 void memset(void* start, int size, int value){
 
 	char* ptr = (char*)start;

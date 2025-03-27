@@ -45,6 +45,9 @@ void print(char* message){
 		}
 		else { 
 
+
+
+
 			int pos = (currLine * SCREEN_WIDTH + textPos) * 2;
 
 			video_memory[pos] = *message;
@@ -59,7 +62,6 @@ void print(char* message){
 
 				textPos++;
 			}
-
 		}
 
 		message++;
@@ -139,5 +141,6 @@ void println(){
 
 	textPos = 0;
 	currLine++;
+
 
 }

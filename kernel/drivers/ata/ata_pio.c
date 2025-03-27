@@ -1,4 +1,5 @@
 
+
 unsigned short* read_ATA_PIO(int sectors, unsigned int lba, drive_t drive){
 
 	unsigned short port_base = drive.port_base;
@@ -9,7 +10,7 @@ unsigned short* read_ATA_PIO(int sectors, unsigned int lba, drive_t drive){
 
 	pollATA(false, port_base);
 
-	unsigned short* buffer = (unsigned short*)alloc(sectors * 512);
+	unsigned short* buffer = (unsigned short*)kalloc(sectors * 512);
  	
  	// read 16 bits per time from 0x1F0
 

@@ -1,8 +1,12 @@
-typedef struct {
+typedef struct drive {
 
 	unsigned int sector_count;
 	unsigned int data_region;
 	int* sector_bitmap;
+
+	unsigned short* (*read)(int, unsigned int, struct drive);
+	void (*write)(int, unsigned int, void*, struct drive);
+
 
 	union {
 
