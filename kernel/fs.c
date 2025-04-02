@@ -1,37 +1,40 @@
 #include <stdbool.h>
+#include <stddef.h>
 #include "fs.h"
 #include "math.c"
+#include "./partition.c"
 
 /*
 	TODO:
+	
+
+	
 	- filesystem
-		- create file (in progress)
-			- sector allocation
-			- write file meta info to inode
-			- write file contents
-		- delete file
-		- list files 
-		- edit files (difficult)
-	- heap free functionality 
+		
 	- per process paging
 		- cr3 context switch
-		- demand paging (difficult)
+		- demand paging 
 	- finish LRU swapping
+	
 	- cpu threads per process
+	- send process signals  
 	- heap manangement per procss
 	- stack management per process
+	
+
+
 	- mouse interrupt and tracking
 	- gui terminal 
+
 	- maybe go back in and complete error handling?
 
 	- PHASE 1: Complete , phase 2 will be the network stack
 
 	- Subsequent phases:
+		- More disk/ethernet drivers 
 		- Full GUI support w/ multiple applications
 		- Code compiler 
-		- Distrubuted Computing support
 		- Eventually make 64 bit supported
-		- Look into a RISC fork 
 */
 
 
@@ -47,6 +50,106 @@ void* alloc_buffer(unsigned int size, drive_t drive) {
 	}
 
 	return kalloc(size);
+}
+
+inode_t* createDirectory(inode_t* parent_directory, char* name, drive_t drive, int partition_index, int sector_for_dir) {
+
+	inode_t* inode = (inode_t*)alloc_buffer(sizeof(inode_t), drive);
+
+	inode->meta.type = DIR;
+	inode->meta.name = name;
+	inode->meta.size = 0;
+
+	if(sector_for_dir == -1) {
+
+		sector_for_dir = findFirstFreeSector(drive, partition_index);
+	}
+
+	drive.write(1, sector_for_dir, inode, drive);
+
+	setSectors(sector_for_dir, sector_for_dir + 1, 1, drive);
+
+	if(parent_directory != NULL) {
+
+		addEntries(NULL, parent_directory, 1, sector_for_dir, drive, partition_index);
+	}
+
+	return inode;
+
+}
+
+
+
+void initFs(drive_t* drive, int partition_index) {
+
+	partition_entry_t* partition_table = readPartitionTable(*drive);
+	superblock_t* superblock = readSuperBlock(partition_table, drive, partition_index);
+
+	if(superblock == NULL){
+
+		if(partition_table == NULL) { // for raw external drives 
+
+			unsigned int data_region = 1 + (drive->sector_count * DATA_META_RATIO);
+
+			updateSuperBlock(1, data_region, drive->sector_count, 0, drive, 0);
+			createDirectory(NULL, "root", *drive, 0, drive->partitions[0].root_inode_lba);
+
+			return;
+		}
+
+		print("SUPERBLOCK was NOT found");
+		println();
+	
+		int last_end_sector = 0;
+
+		for(int i = 0; i < 4; i++) {
+
+			if(partition_table[i].status != 0x80) {
+
+				partition_table[i].status = 0x80; 
+				partition_table[i].start_sector = last_end_sector + 1;
+				partition_table[i].size = drive->sector_count - partition_table[i].start_sector;
+				partition_table[i].type = 0x83; 
+
+				for(int j = i + 1; j < 4; j++){
+
+					if(partition_table[j].status == 0x80){
+
+						partition_table[i].size -= partition_table[j].size;
+					}
+				}
+
+
+				unsigned int meta_region = partition_table[i].start_sector + 1;
+				unsigned int data_region = partition_table[i].start_sector + (partition_table[i].size * DATA_META_RATIO);
+				unsigned int sector_count = partition_table[i].size;
+				unsigned int start_lba = partition_table[i].start_sector;
+
+				updateSuperBlock(meta_region, data_region, sector_count, start_lba, drive, partition_index);
+				createDirectory(NULL, "root", *drive, i, drive->partitions[i].root_inode_lba);
+
+				break;
+			}
+
+			last_end_sector = partition_table[i].start_sector + partition_table[i].size;
+		}
+
+
+
+		updatePartionTable(partition_table, *drive);
+	}
+	else {
+
+		print("SUPERBLOCK was found");
+
+
+		drive->partitions[partition_index].meta_region = superblock->meta_region;
+		drive->partitions[partition_index].data_region = superblock->data_region;
+		drive->partitions[partition_index].start_lba = superblock->start_lba;
+		drive->partitions[partition_index].sector_count = superblock->sector_count;
+		drive->partitions[partition_index].root_inode_lba = superblock->root_inode_lba;
+
+	}
 }
 
 void setSectors(int sector_start_index, int sector_end_index, int present, drive_t drive){
@@ -77,12 +180,12 @@ int getSector(int sector_index, drive_t drive){
     return sector;
 }	
 
-int getFreeRegionExtent(int curr_sector, drive_t drive){
+int getFreeRegionExtent(int curr_sector, drive_t drive, int partition_index){
 
 	int free_sectors = 1;
 	int free_sector_index = curr_sector + 1;
 
-	while(getSector(free_sector_index, drive) != 1 && free_sector_index < drive.sector_count) {
+	while(getSector(free_sector_index, drive) != 1 && free_sector_index < drive.partitions[partition_index].sector_count) {
 
 		free_sectors++;
 		free_sector_index++;
@@ -91,9 +194,9 @@ int getFreeRegionExtent(int curr_sector, drive_t drive){
 	return free_sectors;
 }
 
-int findFirstFreeSector(drive_t drive){
+int findFirstFreeSector(drive_t drive, int partition_index){
 
-	int curr_sector = 50; // temporary 
+	int curr_sector = drive.partitions[partition_index].meta_region; 
 
 	while(true){
 
@@ -103,13 +206,13 @@ int findFirstFreeSector(drive_t drive){
 		}
 
 		curr_sector += 1;
-	}
-
-	
+	}	
 }
-int findContinousRegion(int sectors_needed, drive_t drive) {
 
-	int curr_ptr = drive.data_region; // sector index tracker
+int findContinousRegion(int sectors_needed, drive_t drive, int partition_index) {
+
+	int curr_ptr = drive.partitions[partition_index].data_region; // sector index tracker
+	
 	int best_fit_ptr = -1;
 	int best_fit_free_region = -1;
 
@@ -117,7 +220,7 @@ int findContinousRegion(int sectors_needed, drive_t drive) {
 
 		// if the curr sector index is beyond physical capacity stop looking
 
-		if(curr_ptr >= drive.sector_count) {
+		if(curr_ptr >= drive.partitions[partition_index].sector_count) {
 
 			break;
 		}
@@ -125,7 +228,7 @@ int findContinousRegion(int sectors_needed, drive_t drive) {
 
 			// when a free sector is found, try to see how far this free region extend
 			
-			int free_region = getFreeRegionExtent(curr_ptr, drive);
+			int free_region = getFreeRegionExtent(curr_ptr, drive, partition_index);
 
 			// if this free extent can fit what we want and it's smaller than best_fit_free_region then update
 			if(free_region >= sectors_needed && (best_fit_free_region < 0 || best_fit_free_region > free_region)){
@@ -146,7 +249,7 @@ int findContinousRegion(int sectors_needed, drive_t drive) {
 	
 }
 
-void addEntries(char* data, inode_t* inode, int free_sectors, int starting_ptr, drive_t drive){
+void addEntries(char* data, inode_t* inode, int free_sectors, int starting_ptr, drive_t drive, int partition_index){
 
 	//for initial inode
 	
@@ -173,7 +276,7 @@ void addEntries(char* data, inode_t* inode, int free_sectors, int starting_ptr, 
 				entries[i].blocks = free_sectors;
 				entries[i].start = starting_ptr;
 
-				drive.write(free_sectors, starting_ptr, data, drive);
+				if(data != NULL) drive.write(free_sectors, starting_ptr, data, drive);
 
 				setSectors(starting_ptr, starting_ptr + free_sectors, 1, drive);
 
@@ -202,7 +305,7 @@ void addEntries(char* data, inode_t* inode, int free_sectors, int starting_ptr, 
 			entry_table->entries[0].start = starting_ptr;
 
 			// find a free sector for it
-			int new_entry_table_sector = findFirstFreeSector(drive);
+			int new_entry_table_sector = findFirstFreeSector(drive, partition_index);
 
 
 			println();
@@ -210,8 +313,8 @@ void addEntries(char* data, inode_t* inode, int free_sectors, int starting_ptr, 
 			printi(new_entry_table_sector);
 			println();
 
-			// write entry table to the sector
-			drive.write(1, new_entry_table_sector, entry_table, drive);
+			// write entry table to the sector 
+			drive.write(1, new_entry_table_sector, entry_table, drive); 
 
 			//set as used
 			setSectors(new_entry_table_sector, new_entry_table_sector + 1, 1, drive);
@@ -248,13 +351,17 @@ void addEntries(char* data, inode_t* inode, int free_sectors, int starting_ptr, 
 
 }
 
-inode_t* createFile(char* data, char* file_name, int size, drive_t drive){
+
+
+
+inode_t* createFile(char* data, inode_t* directory, char* file_name, int size, drive_t drive, int partition_index){
 
 	// 1. Check if there's enough free sectors to store the file
 	int avaliable_sectors = 0;
 	int sectors_needed = ceil(size/512.0);
 
-	for(int i = drive.data_region; i <  drive.sector_count; i++){
+	/*
+	for(int i = drive.partitions[partition_index].data_region; i <  drive.partitions[partition_index].sector_count; i++){
 
 		if(getSector(i, drive) == 0){
 
@@ -266,26 +373,29 @@ inode_t* createFile(char* data, char* file_name, int size, drive_t drive){
 
 		//ERROR: not enough disk space
 
+		print("Not enough disk space");
+
 		return;
 	}
-	
+	*/
 
 	inode_t* inode = (inode_t*)alloc_buffer(sizeof(inode_t), drive);
 
 	inode->meta.name = file_name;
 	inode->meta.size = size;
+	inode->meta.type = FILE;
 	
 
 	// 2. See if we can find a contious region of free space using best fit
 
-	int continous_region_ptr = findContinousRegion(sectors_needed, drive);
+	int continous_region_ptr = findContinousRegion(sectors_needed, drive, partition_index);
 
 	if(continous_region_ptr == -1){
 
 		// 3. A continous free region wasn't found. Use first fit to fill in fragments 
 
 		int sectors_left = sectors_needed;
-		int curr_ptr = drive.data_region;
+		int curr_ptr = drive.partitions[partition_index].data_region;
 		int chunk_offset = 0;
 
 		print("Couldn't find continous region");
@@ -302,7 +412,7 @@ inode_t* createFile(char* data, char* file_name, int size, drive_t drive){
 
 				// 4. get the extent of the free region once a free sector is found 
 
-				int free_sectors = getFreeRegionExtent(curr_ptr, drive);
+				int free_sectors = getFreeRegionExtent(curr_ptr, drive, partition_index);
 
 				println();
 				print(" Free sectors ");
@@ -317,7 +427,7 @@ inode_t* createFile(char* data, char* file_name, int size, drive_t drive){
 					split_data[i] = *( data + i );
 				}
 
-				addEntries(split_data, inode, free_sectors, curr_ptr, drive);
+				addEntries(split_data, inode, free_sectors, curr_ptr, drive, partition_index);
 
 				// 6. set inode blocks and increment/decrement
 
@@ -335,18 +445,18 @@ inode_t* createFile(char* data, char* file_name, int size, drive_t drive){
 
 		print("Found continous region");
 
-			println();
-			print(" Free sectors ");
-			printi(sectors_needed);
+		println();
+		print(" Free sectors ");
+		printi(sectors_needed);
 
 		// 3. add entries 
 
-		addEntries(data, inode, sectors_needed, continous_region_ptr, drive);
+		addEntries(data, inode, sectors_needed, continous_region_ptr, drive, partition_index);
 	}
 
 	//write inode to disk 
 
-	int sector_for_inode = findFirstFreeSector(drive);
+	int sector_for_inode = findFirstFreeSector(drive, partition_index);
 
 	drive.write(1, sector_for_inode, inode, drive);
 
@@ -357,6 +467,12 @@ inode_t* createFile(char* data, char* file_name, int size, drive_t drive){
 
 	setSectors(sector_for_inode, sector_for_inode + 1, 1, drive);
 
+	// add to directory 
+
+	addEntries(NULL, directory, 1, sector_for_inode, drive, partition_index);
+
+	print("File created!");
+
 	//free(data);
 	//free(file_meta);
 
@@ -365,7 +481,7 @@ inode_t* createFile(char* data, char* file_name, int size, drive_t drive){
 }
 
 
-void readFile(inode_t* inode, drive_t drive) {
+inode_t* directoryLookup(inode_t* inode, char* name, drive_t drive) {
 
 	#ifdef DEV 
 		int num_entries = DEV;
@@ -380,25 +496,13 @@ void readFile(inode_t* inode, drive_t drive) {
 	while(true) { 
 
 		for(int i = 0; i < num_entries - 1; i++) {
-			/*
-			println();
-			printi(entries[i].blocks);
-			print(" ");
-			printi(entries[i].start);
-			println();
-			*/
-
 			
-			char* buffer = (char*)drive.read(entries[i].blocks, entries[i].start, drive);
+			inode_t* inode = (inode_t*)drive.read(entries[i].blocks, entries[i].start, drive);
 
-			
-			for(int j = 0; j < ((int)entries[i].blocks * 512); j++){
+			if(inode->meta.name == name) {
 
-				printi(buffer[j]);
-				
-				print(" ");
+				return inode;
 			}
-		
 		}
 
 		if(entries[num_entries - 1].blocks != 0) {
@@ -412,14 +516,79 @@ void readFile(inode_t* inode, drive_t drive) {
 		}
 		else{
 
-			break;
+			return NULL;
 		}
 		
-		
-
 	}
 
+	return NULL;
 }
+
+inode_t* resolvePathToInode(char* path) {
+
+   drive_t* drive = NULL;
+   inode_t* inode = NULL;
+
+   char* folder = strok(path, '/'); 
+
+   while(folder != NULL) {
+
+   	  if(drive == NULL) {
+
+   	  	 int drive_index = stringToNumber(folder);
+
+   	  	 drive = &drives[drive_index];
+   	  }
+   	  else if(inode == NULL) {
+
+   	  	 int partition_index = stringToNumber(folder);
+   	  	 int root_lba = drive->partitions[partition_index].root_inode_lba;
+
+   	  	 inode = (inode_t*)drive->read(1, root_lba, *drive);
+   	  }
+   	  else {
+
+   	  	 inode = directoryLookup(inode, folder, *drive);
+   	  }
+
+
+	  folder = strok(NULL, '/');
+   }
+  
+}
+
+void openFile() {
+
+	/*
+
+		if doesn't exist, call create file and add to global file table
+
+		else just add to global file table 
+
+	*/
+}
+
+void writeFile() {
+
+	/*	
+		write file from current position 
+	*/
+
+}
+
+void appendFile(){}
+void renameFile(){}
+void truncateFile(){}
+void seekFile(){}
+void closeFile(){}
+void deleteFile(){}
+
+
+void openDirectory(){}
+void closeDirectory(){}
+void deleteDirectory(){}
+
+
 
 void test_fs(){
 
@@ -500,13 +669,21 @@ void test_fs(){
 
 	// Test 2. 1 entry tables
 
-	char* data = (char*)kalloc(512*10);
 
+	char* data = (char*)kalloc(512*10);
 	memset(data, 512*10, 2);
 
-	inode_t* inode = createFile(data,"Hello", 512*10, drives[0]);
+	inode_t* directory = createDirectory(NULL, "root", drives[0], 1, -1);
+	inode_t* inode = createFile(data, directory, "Hello", 512*10, drives[0], 1);
+
+	char* data2 = (char*)kalloc(512);
+	inode_t* inode2 = createFile(data2, directory, "Bye", 512, drives[0], 1);
 
 
+	//clearScreen();
+	//readFile(directory, drives[0]);
+
+	/*
 	print("Meta Bitmap: ");
 
 	for(int i = 50; i < 60; i++){
@@ -522,11 +699,12 @@ void test_fs(){
 		printi(getSector(i, drives[0]));
 		print(" ");
 	}
+	*/
 	
 
-	clearScreen();
+//	clearScreen();
 
-	readFile(inode, drives[0]);
+//	readFile(inode, drives[0]);
 
 
 	// Test 3. 2 entry tables 
@@ -545,118 +723,3 @@ void test_fs(){
 
 
 }
-
-
-
-
-
-
-
-
-
-/*
-void createFile(char* data, int size, char* file_name, drive_t drive){
-
-	// 1. Check if there's enough free sectors to store the file
-
-	int avaliable_sectors = 0;
-	int sectors_needed = ceil(size/512.0);
-
-	for(int i = drive.data_region; i <  drive.sector_count; i++){
-
-		if(getSector(i, drive) == 0){
-
-			avaliable_sectors++;
-		}
-	}
-
-	if(avaliable_sectors < sectors_needed) {
-
-		//ERROR: not enough disk space
-
-		return;
-	}
-	
-	//allocate inode and meta and populate meta fields
-
-	inode_t* inode = (inode_t*)alloc(sizeof(inode_t));
-	meta_t* file_meta = (meta_t*)alloc(sizeof(meta_t));
-
-	file_meta->name = file_name;
-	file_meta->size = size;
-	inode->file_meta = file_meta;
-	
-	// 2. See if we can find a contious region of free space using best fit
-
-	int continous_region_ptr = findContinousRegion(sectors_needed, drive);
-
-	if(continous_region_ptr == -1){
-
-		// 3. A continous free region wasn't found. Use first fit to fill in fragments 
-
-		int sectors_left = sectors_needed;
-		int curr_ptr = drive.data_region;
-
-		print("Couldn't find continous region");
-
-		while(1){
-
-			if(sectors_left <= 0){
-
-				// 5. break once all sectors are accounted for
-
-				break;
-			}
-			else if(getSector(curr_ptr, drive) == 0){
-
-				// 4. get the extent of the free region once a free sector is found 
-
-				int free_sectors = getFreeRegionExtent(curr_ptr, drive);
-
-				println();
-				print(" Free sectors ");
-				printi(free_sectors);
-
-
-				writeATA(curr_ptr,  );
-
-				// 5. Add entries to the inode
-
-				addEntries(inode, free_sectors, curr_ptr, drive);
-
-				// 6. set inode blocks and increment/decrement
-
-				sectors_left -= free_sectors;
-				curr_ptr += free_sectors;
-			}
-			else{
-
-				curr_ptr += 1;
-			}
-		}
-	}
-	else {
-
-		print("Found continous region");
-
-		// 3. add entries 
-
-		addEntries(inode, sectors_needed, continous_region_ptr, drive);
-	}
-
-	//write inode to disk 
-
-	int sector_for_inode = findFirstFreeSector(drive);
-
-	writeATA(1, sector_for_inode, inode, drive);
-
-	println();
-	print("Inode allocated at sector ");
-	printi(sector_for_inode);
-	println();
-
-	setSectors(sector_for_inode, sector_for_inode + 1, 1, drive);
-
-}
-*/
-

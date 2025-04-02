@@ -7,6 +7,7 @@
 
 PageDirectoryEntry* page_directory;
 
+
 PageTableEntry createPageTableEntry(unsigned int p, unsigned int w, unsigned int u, unsigned int pcd, unsigned int ptw, unsigned int frame_addr){
 
     PageTableEntry pte = { p, w, u, pcd, ptw, 0, 0, 0, 0, 0, 0, 0, frame_addr >> 12 };
@@ -21,25 +22,6 @@ PageDirectoryEntry createPageDirectoryEntry(unsigned int p, unsigned int w, unsi
 
     return pde;
 }
-
-
-/*
-page_t* allocPage() {
-
-    int free_frame_index = findFreeFrame();
-
-    if(free_frame_index == -1){
-
-        free_frame_index = lruSwap();
-    }
-
-    //set as used 
-    setFrame(free_frame_index, 1);
-
-  //  return (page_t*)palloc();
-    return (page_t*)(free_frame_index*FRAME_SIZE);
-}
-*/
 
 
 void initPaging(int extra_memory_needed){
@@ -138,6 +120,23 @@ void identityMapPages(void* mem, unsigned int size, unsigned int w, unsigned int
     }
 }
 
+
+void unmapPage(unsigned int virtual_address){
+
+    unsigned int pde_index = (virtual_address >> 22) & 0x3FF;
+    unsigned int pte_index = (virtual_address >> 12) & 0x3FF;
+
+    PageDirectoryEntry pde = page_directory[pde_index];
+
+    if(pde.p != 0x0) {
+
+        PageTableEntry* page_table = (PageTableEntry*)(REC_PAGE_TABLE + (pde_index * FRAME_SIZE));
+
+        page_table[pte_index].p = 0; 
+
+        asm volatile("invlpg (%0)" : : "r"(virtual_address) : "memory");
+    }
+}
 
 
 void handlePageFault(int virtual_address, int code) {

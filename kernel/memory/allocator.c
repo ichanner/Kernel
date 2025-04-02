@@ -7,7 +7,7 @@
 */
 
 block_t* free_list_root;
-//block_t* frame_list_root;
+
 
 
 void print_free_list() {
@@ -59,19 +59,13 @@ void initAlloc(){
     free_list_root->prev = NULL;
     free_list_root->next = NULL;
     
-    //frame_list_root->size = total_ram;
-   // frame_list_root->prev = NULL;
-   // frame_list_root->next = NULL;
-    //frame_list_root = (block_t*)0x0;
 }
 
 
-void free(void* ptr){
+void kfree(void* ptr){
 
-    unsigned int block_addr = ((unsigned int)ptr - HEADER_SIZE); 
-    
     block_t* free_list_ptr = free_list_root;
-    block_t* freed_block = (block_t*)block_addr;
+    block_t* freed_block = (block_t*)((char*)ptr - HEADER_SIZE);;
 
     if(free_list_ptr == NULL) {
 
@@ -79,8 +73,6 @@ void free(void* ptr){
         freed_block->next = NULL;
 
         free_list_root = freed_block;
-
-       //  print("case 1");
 
         return;
     }
@@ -92,16 +84,10 @@ void free(void* ptr){
         free_list_ptr->prev = freed_block;
         free_list_root = freed_block;
 
-      //  print("case 2");
-
         return;
     }
 
 
-   /* println();
-    print("SIZE: ");
-    printi(freed_block->size);
-*/
     while(1){
 
         if(free_list_ptr->size < freed_block->size && free_list_ptr->next != NULL) {   
@@ -114,32 +100,43 @@ void free(void* ptr){
         
         freed_block->prev = free_list_ptr;
         freed_block->next = free_list_ptr->next;
-
+        
         if(free_list_ptr->next != NULL){
 
             free_list_ptr->next->prev = freed_block;
+
+            if(((char*)ptr + freed_block->size) == (char*)free_list_ptr->next){
+
+                // merge with next free block
+
+                freed_block->next = free_list_ptr->next->next;
+                freed_block->size += (HEADER_SIZE + free_list_ptr->next->size);
+
+                if(freed_block->next != NULL){
+
+                    freed_block->next->prev = freed_block;
+                }
+            }  
         }
 
         free_list_ptr->next = freed_block;
+     
+        if((char*)freed_block == ((char*)free_list_ptr + HEADER_SIZE + free_list_ptr->size)){
+
+            // merge with previous 
+
+            free_list_ptr->size += (HEADER_SIZE + freed_block->size);
+            free_list_ptr->next = freed_block->next;
+
+            if(freed_block->next != NULL){
+
+                freed_block->next->prev = free_list_ptr;
+            }
+        }
 
         break;
-
-            /*
-
-            if(free_list_ptr->next != NULL && ((ptr + freed_size) == free_list_ptr->next)){
-
-
-            }   
-         
-            if(free_list_ptr != NULL && (block_addr == ((free_list_ptr + HEADER_SIZE) + free_list_ptr->size))){
-
-
-            }
-
-            */
-    
+            
     }    
-
 }
 
 
@@ -230,97 +227,3 @@ void* kalloc(unsigned int req_size) {
 
 
 
-
-/*
-
-
-
-void* palloc() {
-
-    block_t* free_list_ptr = frame_list_root;
-
-    while(1){
-
-        unsigned int total_size = free_list_ptr->size;
-        
-        if(total_size >= 4096){ // it matches requested size 
-
-            unsigned int start_address = (unsigned int)free_list_ptr;
-            
-
-            //unsigned int padding = (PAGE_ALIGNMENT - (start_address % PAGE_ALIGNMENT)) % PAGE_ALIGNMENT;
-          
-            //start_address += padding;
-
-            unsigned int end_address = (start_address + 4096) ;
-            unsigned int buddy_size = total_size - (start_address + 4096);
-
-            if(total_size != 4096 && buddy_size >= HEADER_SIZE) { // still left over room to make new free entry
-
-                block_t* buddy = (block_t*)end_address;
-
-                buddy->size = buddy_size;
-                buddy->prev = free_list_ptr->prev; // buddy prev points to original prev 
-                buddy->next = free_list_ptr->next; // buddy next points to original next 
-
-                if(free_list_ptr->prev != NULL) {
-
-                    free_list_ptr->prev->next = buddy; // update allocaed prev next pointer to buddy
-                }
-
-                if(free_list_ptr->next != NULL) {
-
-                    free_list_ptr->next->prev = buddy; // update allocaed next prev pointer to buddy
-                }
-
-                if(free_list_ptr == frame_list_root) {
-
-                    frame_list_root = buddy;
-                 }
-
-            }
-            else {
-
-                if(free_list_ptr->next != NULL){
-
-                    free_list_ptr->next->prev = free_list_ptr->prev;
-                }
-
-                if(free_list_ptr->prev != NULL) {
-
-                    free_list_ptr->prev->next = free_list_ptr->next;
-
-                }
-
-                if(free_list_ptr == frame_list_root) frame_list_root = free_list_ptr->next;
-
-            }
-
-            free_list_ptr->size = 4096; // set the new size
-
-             printi((start_address)%4096);
-
-            print(",");
-            
-            printi((start_address)/4096);
-
-            print(" ");
-
-            return (void*)(start_address + HEADER_SIZE);
-        }
-        else {
-
-            if(free_list_ptr->next != NULL){ // go to next entry in free list
-
-                free_list_ptr = free_list_ptr->next;
-
-            }
-            else {
-
-                break;
-            }
-        }
-    }
-
-    return NULL;
-}*/

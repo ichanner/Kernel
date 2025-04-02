@@ -4,7 +4,7 @@
 #include "./memory.h"
 
 
-#define HEADER_OFFSET 4
+#define HEADER_SIZE sizeof(int)
 
 
 int getFrame(int);

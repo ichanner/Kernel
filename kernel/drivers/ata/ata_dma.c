@@ -57,11 +57,13 @@ void DMA_Transfer(int sectors, unsigned int lba, void* buffer, drive_t drive, bo
 		outb(drive.is_28_bit ? 0xC8 : 0x25, port_base + 0x7); // send dma transfer command
 	}
 
-	outb(is_write ? 0x1 : 0x9, base_addr); //Set the Start bit on the Bus Master Command Register.
+	outb(is_write ? 0x5 : 0xD, base_addr); //Set the Start bit on the Bus Master Command Register.
 
-	while (inb(base_addr + 0x2) & 0x1) { /* Wait for Active bit to clear */ }
-if (inb(base_addr + 0x2) & 0x2) { /* Interrupt bit set, transfer done */ }
-if (inb(base_addr + 0x2) & 0x4) { /* Error bit set, handle error */ }
+
+
+	while (inb(base_addr + 0x2) & 0x1) { }
+if (inb(base_addr + 0x2) & 0x2) {  }
+if (inb(base_addr + 0x2) & 0x4) {}
 
 }
 

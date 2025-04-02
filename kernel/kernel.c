@@ -5,10 +5,11 @@
 
 #include "./memory/memory.c"
 
+#include "./string.c"
+
 #include "./drive.c"
 #include "./drivers/ata/ata.c"
 #include "./fs.c"
-
 
 void test(){
 
@@ -127,42 +128,40 @@ void main() {
    printi(getFrame(259));
 */
    println();
-	
+
+/*
+   char* token = "hello,iancc,washh";  
+
+   token = strok("hello,iancc,washh", ','); 
+  
+   while(token != NULL){
+
+   		print(token);
+
+	   	token = strok(NULL, ',');
+
+	   	print(" ");
+
+   }
+   */
+
+   initFs(&drives[0], 1);
+
+   
+
+
 //	char* write = (char*)kalloc(512);
 
 //	write_ATA_DMA(1, 51, write, drives[0]);
 
 
 
-   
-	//unsigned short* test = read_ATA_DMA(1, 50, drives[0]);
 
+   	//partition_t* table = (partition_t*)readPartitionTable(drives[0]);
 
-   /*
-   unsigned short* test = drives[0].read(1, 50, drives[0]);
+   //	printi(table[0].status);
 
-	clearScreen();
-	
-	println();
-
-	for(int i = 0; i < 512/2; i++){
-
-		printi(test[i]);
-		print(" ");
-	
-	}
-
-	print("STOP");
-*/
-	
-
-	//print_free_list();
-
-
-
-
-
-	test_fs();
+	//test_fs();
 
  
 //	unsigned int r = pciConfigReadDWord(0, 1, 1, 0x4);

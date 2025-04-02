@@ -53,6 +53,20 @@ void setFrames(int start_index, int end_index, int present){
     }
 }
 
+void freePages(void* ptr, int size) {
+
+    int frames_needed = (size + FRAME_SIZE - 1) / FRAME_SIZE;
+    int start_index = (unsigned int)ptr/FRAME_SIZE; 
+
+    for(int i = start_index; i < start_index + frames_needed; i++){
+
+        unmapPage(i * FRAME_SIZE);
+
+        setFrame(i, 0);
+    }
+
+}
+
 page_t* allocPage(){
 
     int entries_scanned = 0;
@@ -123,48 +137,3 @@ page_t* allocPages(int size) {
     return NULL;  // No available contiguous frames
 }
 
-
-/*
-
-
-
-int allocContigousFrames(int size) {
-   
-    int frames_needed = (size + FRAME_SIZE - 1) / FRAME_SIZE;  // Correct rounding
-    int index = frame_ptr;  // DMA Zone
-    int max_index = total_ram / FRAME_SIZE;
-
-    while (index < max_index) {
-        
-        if (getFrame(index) == 0) {  // Found a free frame
-           
-            int free_frames = 1;
-            int free_frame_index = index + 1;
-
-            while (free_frame_index < max_index && getFrame(free_frame_index) == 0) {
-                free_frames++;
-                free_frame_index++;
-            }
-
-            if (free_frames >= frames_needed) {  // Found enough contiguous frames
-                for (int i = index; i < index + frames_needed; i++) {  // Only allocate needed frames
-                    unsigned int phys_addr = i * FRAME_SIZE;
-
-
-                    mapPage(phys_addr, 1, 0, 0, 1);
-                    setFrame(i, 1);
-                }
-                return index * FRAME_SIZE;
-            }
-        
-            index += free_frames;  // Skip past checked free frames
-       
-        } else {
-           
-            index++;
-        }
-    }
-
-    return -1;  // No available contiguous frames
-}
-*/

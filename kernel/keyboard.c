@@ -300,7 +300,10 @@ int codeToAscii(unsigned short code) {
 
             if(code == 0x2e){
 
-                clearScreen();
+                test_fs();
+
+
+                //clearScreen();
 
                 return 0;
             }

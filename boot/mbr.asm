@@ -72,10 +72,21 @@ print_kernel_error:
 exit_kernel_error:
 	jmp $
 
-
 kernel_error_message: db "Unable to load kernel image", 0
 
-times 510 - ($-$$) db 0 
+times 494 - ($-$$) db 0 
+
+partion_table:
+	
+db 0x80                  ; Status
+db 0x00                  ; Starting LBA address (this could be the start of the partition)
+db 0x07                  ; Partition type
+db KERNEL_SECTORS_COUNT  ; Partition Size in sectors
+
+dd 0, ; Partiton 2
+dd 0, ; Partiton 3
+dd 0  ; Partiton 4
+
 db 0x55, 0xaa
 
 

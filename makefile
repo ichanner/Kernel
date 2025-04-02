@@ -39,12 +39,10 @@ build: $(BOOTLOADER) $(KERNEL) $(SWAP) $(PAGING) $(FRAME_MANAGER) $(KERNEL_ENTRY
 
 	nasm -f bin $(BOOTLOADER) -o $(BOOTLOADER_BIN)
 	
-	dd if=/dev/zero of=$(FINAL_IMAGE) bs=512 count=100
+	dd if=/dev/zero of=$(FINAL_IMAGE) bs=512 count=200
 	dd if=$(BOOTLOADER_BIN) of=$(FINAL_IMAGE) conv=notrunc
 	dd if=$(LINKED_KERNEL) of=$(FINAL_IMAGE) bs=512 seek=1 conv=notrunc
-	dd if=$(SUM2) of=$(FINAL_IMAGE) bs=512 seek=50 conv=notrunc
-
-	dd if=$(SUM2) of=$(FINAL_IMAGE) bs=512 seek=51 conv=notrunc
+	
 
 
 #sudo dd if=$(FINAL_IMAGE) of=/dev/sdb bs=4M status=progress

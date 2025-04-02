@@ -61,16 +61,19 @@ void configureDMADevice(){
 
 	unsigned int bar4 = pciConfigReadDWord(bus, slot, func, 0x20);
 
-	unsigned interupt = pciConfigReadDWord(bus, slot, func, 0x3C);
+	unsigned int interrupt = pciConfigReadDWord(bus, slot, func, 0x3C);
 
-	interupt |= 0x100;
+	//unsigned int config = pciConfigReadDWord(bus, slot, func, 0x3c);
+	//unsigned char int_pin = (config >> 8) & 0xFF;
+	
+	//print(int_pin); // 1 = INTA#, 2 = INTB#, etc.
+		
 
-	println();
+	interrupt &= 0xFFFF0000;
+	interrupt |= 0x0300;
+	interrupt |= 0x0E;
 
-	print(" interupt: ");
-	printi(interupt);
-
-	pciConfigWriteDword(bus, slot, func, 0x3c, interupt);
+	pciConfigWriteDword(bus, slot, func, 0x3c, interrupt);
 
 
 	println();
@@ -241,7 +244,7 @@ void identifyATADrive(bool is_master, bool is_secondary, int id){
 	driveDebug(is_master, is_secondary, "Sector Count: ");
 	printi(sector_count);
 
-	createATADrive(id, port_base, sector_count, sector_count * DATA_REGION_PORTION, dma_mode, is_master, is_28_bit, read_func, write_func);
+	createATADrive(id, port_base, sector_count, dma_mode, is_master, is_28_bit, read_func, write_func);
 }
 
 void initATA(){

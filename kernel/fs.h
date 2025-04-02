@@ -1,9 +1,16 @@
 #define BLOCK_SIZE 512
-#define DEV 3
+#define DEV 5
+#define DATA_META_RATIO .25
+
+typedef enum {
+	FILE,
+	DIR
+} file_type;
 
 typedef struct {
 
 	char* name;
+	file_type type;
 	unsigned int size;
 
 } meta_t;
