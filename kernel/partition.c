@@ -41,8 +41,21 @@ void updateSuperBlock(unsigned int meta_region, unsigned int data_region, unsign
 	drive->partitions[part_index].data_region = data_region;
 	drive->partitions[part_index].sector_count = sector_count;
 	drive->partitions[part_index].start_lba = start_lba;
-	drive->partitions[part_index].root_inode_lba = findFirstFreeSector(*drive, part_index);;
+	drive->partitions[part_index].root_inode_lba = meta_region;
 
+	int bitmap_size = (sector_count + 31) / 32 * sizeof(int);	
+	int bitmap_sector_count = ceil(bitmap_size/512.0);
+	int bitmap_start_sector = meta_region + 1;
+
+	setSectors(bitmap_start_sector, bitmap_start_sector + bitmap_sector_count, 1, *drive);
+	
+	int* sector_bitmap = (int*)kalloc(bitmap_size);
+	
+	memset(sector_bitmap, bitmap_size, 0);
+
+	drive->partitions[part_index].sector_bitmap = sector_bitmap;
+	drive->partitions[part_index].bitmap_sector_count = bitmap_sector_count;
+	drive->partitions[part_index].bitmap_start_sector = bitmap_start_sector;
 
 	print("partition at index:  ");
 	printi(part_index);

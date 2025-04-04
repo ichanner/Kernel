@@ -147,7 +147,7 @@ void main() {
 
    initFs(&drives[0], 1);
 
-   
+   test_fs();
 
 
 //	char* write = (char*)kalloc(512);

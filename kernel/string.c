@@ -13,6 +13,19 @@ int strlen(char* str){
 }
 
 
+bool strcmp(char* str_1, char* str_2){
+
+	if(strlen(str_1) != strlen(str_2)) return false;
+
+
+	for(int i = 0; i < strlen(str_1); i++){
+
+		if(str_1[i] != str_2[i]) return false;
+	}
+
+	return true;
+}
+
 int stringToNumber(char* str) {
 
 	int dec = 1;

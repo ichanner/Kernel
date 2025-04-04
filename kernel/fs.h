@@ -12,6 +12,7 @@ typedef struct {
 	char* name;
 	file_type type;
 	unsigned int size;
+	unsigned int lba;
 
 } meta_t;
 

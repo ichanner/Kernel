@@ -7,6 +7,9 @@ typedef struct
 	unsigned int root_inode_lba;
 	unsigned int sector_count;
 	unsigned int start_lba;
+	unsigned int bitmap_start_sector;
+	unsigned int bitmap_sector_count;
+	int* sector_bitmap;
 	
 } superblock_t;
 
