@@ -1,6 +1,9 @@
 #define BLOCK_SIZE 512
 #define DEV 5
+#define INODE_NUM_ENTRIES (BLOCK_SIZE-sizeof(meta_t))/sizeof(entry_t)
+#define EXT_TABLE_NUM_ENTRIES BLOCK_SIZE/sizeof(entry_t)
 #define DATA_META_RATIO .25
+
 
 typedef enum {
 	FILE,
@@ -45,3 +48,13 @@ typedef struct {
 
 
 } inode_t;
+
+typedef struct {
+    entry_t* entries;
+    int entry_table_sector;
+    bool is_primary_table;
+    int num_entries;
+    int first_index;
+} add_entry_state_t;
+
+

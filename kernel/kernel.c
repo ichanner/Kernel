@@ -1,15 +1,13 @@
 #include <stdbool.h>
 #include "./screen.c"
-#include "./process.c";
+#include "./proc/process.c";
 #include "./interrupts/interrupt_handlers.c"
-
 #include "./memory/memory.c"
+#include "./utils/string.c"
+#include "./drivers/block/drive.c"
+#include "./drivers/block/ata/ata.c"
+#include "./filesystem/ext4.c"
 
-#include "./string.c"
-
-#include "./drive.c"
-#include "./drivers/ata/ata.c"
-#include "./fs.c"
 
 void test(){
 
@@ -144,7 +142,9 @@ void main() {
 
    }
    */
+	clearScreen();
 
+   initFileTable();
    initFs(&drives[0], 1);
 
    test_fs();

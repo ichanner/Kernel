@@ -16,7 +16,6 @@ typedef struct
 typedef struct drive {
 
 	unsigned int sector_count;
-	int* sector_bitmap;
 	unsigned short* (*read)(int, unsigned int, struct drive);
 	void (*write)(int, unsigned int, void*, struct drive);
 

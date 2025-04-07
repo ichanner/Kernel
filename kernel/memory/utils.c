@@ -11,13 +11,12 @@ void memset(void* start, int size, int value){
 
 void memcpy(void* src, void* dest, int size){
 
-	/*
-	unsigned char* src = (unsigned char*)src;
-	unsigned char* dest = (unsigned char*)dest;
+	char* src_cast = (char*)src;
+	char* dest_cast = (char*)dest;
 
 	for(int i = 0; i < size; i++){
 
-		dest[i] = src[i]; 
+		dest_cast[i] = src_cast[i]; 
 	}
-	*/
+
 }

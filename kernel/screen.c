@@ -21,13 +21,6 @@ void clearScreen(){
 	textPos = 0;
 	currLine = 0;
 
-	int eax;
-
-	asm volatile("mov %%edi, %0" : "=r"(eax));
-
-	printi(eax);
-	println();
-
 	enable_interrupts();
 
 }

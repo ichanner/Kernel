@@ -1,0 +1,45 @@
+For every running process, the system also maintains a virtual file system
+under the directory /proc/. We say it’s virtual because it doesn’t take any
+physical disk space; it’s in the form of a file just for the convenience of
+inspecting running process status.
+
+5 process states:
+
+Running (R): currently being run by the cpu
+Uninterruptible Sleep (D): are not being executed by cpu but take up memory space.
+	ex/ Waiting for io 
+Interruptible Sleeping (S): similar to the above but it will respond to signals 
+Stopped (T): similar to sleeping but it was done so manually, can manually set it back to R
+Zombie (Z): they are finished, don't take up any memory or cpu usage. the entry still exists in the process table. eventually goes away 
+
+
+Check states of all running processes: ps -l
+
+
+Check status of all running processes: htop 
+
+Very first process is executed from: /sbin/init
+
+This is the very first process when we start the machine. It “coordinates
+the rest of the boot process and configures the environment for the use.”
+
+ 			init (PID 1)
+           /     |     \
+        bash   systemd  ...
+         |
+       htop
+
+
+Whenever we invoke a program from terminal, the interpreter actually cre-
+ated process that executes our program. We can also create a child process
+from our program by using fork() :
+
+
+The program that calls fork() is called parent process, while the pro-
+gram invoked by fork() child process.
+
+right after forking the child process  has same code, same data, same everything as the parent (both kernel and user addressable portions).
+
+the child process will only execute code below the fork function call
+
+

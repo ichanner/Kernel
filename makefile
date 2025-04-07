@@ -39,7 +39,7 @@ build: $(BOOTLOADER) $(KERNEL) $(SWAP) $(PAGING) $(FRAME_MANAGER) $(KERNEL_ENTRY
 
 	nasm -f bin $(BOOTLOADER) -o $(BOOTLOADER_BIN)
 	
-	dd if=/dev/zero of=$(FINAL_IMAGE) bs=512 count=200
+	dd if=/dev/zero of=$(FINAL_IMAGE) bs=512 count=110
 	dd if=$(BOOTLOADER_BIN) of=$(FINAL_IMAGE) conv=notrunc
 	dd if=$(LINKED_KERNEL) of=$(FINAL_IMAGE) bs=512 seek=1 conv=notrunc
 	

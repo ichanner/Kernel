@@ -25,37 +25,7 @@ mov ebx, 0
 mov di, 0x8000
 mov edx, 0
 
-;call get_memory_map
-
 jmp KERNEL_LOCATION
-
-%if 0 
-get_memory_map:
-	cmp ebx, 0
-	je get_memory_map_gate
-	jmp get_memory_map_iter
-
-get_memory_map_gate:
-	cmp edx, 0
-	jne get_memory_map_end
-	jmp get_memory_map_iter
-
-get_memory_map_iter:
-	mov eax, 0xE820
-	mov ecx, 24
-	mov edx, 0x534D4150
-	int 0x15
-	jc kernel_load_error
-	cmp eax, 0x534D4150
-	jne kernel_load_error
-	add di, 24
-	jmp get_memory_map
-
-get_memory_map_end:
-	mov [di], dword 44
-	ret
-
-%endif
 
 kernel_load_error:
 	mov bx, 0
@@ -78,14 +48,14 @@ times 494 - ($-$$) db 0
 
 partion_table:
 	
-db 0x80                  ; Status
-db 0x00                  ; Starting LBA address (this could be the start of the partition)
-db 0x07                  ; Partition type
-db KERNEL_SECTORS_COUNT  ; Partition Size in sectors
+	db 0x80                  ; Status
+	db 0x00                  ; Starting LBA address 
+	db 0x07                  ; Partition type
+	db KERNEL_SECTORS_COUNT  ; Partition Size in sectors
 
-dd 0, ; Partiton 2
-dd 0, ; Partiton 3
-dd 0  ; Partiton 4
+	dd 0, ; Partiton 2
+	dd 0, ; Partiton 3
+	dd 0  ; Partiton 4
 
 db 0x55, 0xaa
 

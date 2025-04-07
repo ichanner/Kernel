@@ -26,7 +26,7 @@ int ceil(double a){
     
     if(diff != 0){
         
-        return (truncated+1);
+        return (truncated + 1);
     }
     
     return (int)a;

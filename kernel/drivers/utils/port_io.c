@@ -42,21 +42,3 @@ unsigned char inb(unsigned short port){
 
 	return buffer;
 }
-
-
-
-void enable_interrupts(){
-
-	asm volatile("sti");
-}
-
-
-void disable_interrupts(){
-
-	asm volatile("cli");
-}
-
-void halt(){
-
-	asm volatile("hlt");
-}

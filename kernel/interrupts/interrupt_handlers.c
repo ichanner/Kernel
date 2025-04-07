@@ -1,7 +1,23 @@
-#include "../system.c"
-#include "../keyboard.c"
-#include "../scheduler.c"
+#include "../drivers/utils/port_io.c"
+#include "../drivers/char/keyboard.c"
+#include "../proc/scheduler.c"
 #include <stdbool.h>
+
+void enable_interrupts(){
+
+	asm volatile("sti");
+}
+
+
+void disable_interrupts(){
+
+	asm volatile("cli");
+}
+
+void halt(){
+
+	asm volatile("hlt");
+}
 
 void handle_critical_error(const char* error_message) {
 
