@@ -38,11 +38,11 @@ file_table_entry_t* getFileTableEntry(int fd) {
 
 }
 
-int addToFileTable(void* inode, int fd, drive_t drive, int partition_index) {
+int addToFileTable(void* inode, int fd, drive_t* drive, int partition_index) {
 
 	int index = hash(fd); 
 
-	superblock_t superblock = drive.partitions[partition_index];
+	superblock_t* superblock = &drive->partitions[partition_index];
 	file_table_entry_t entry = file_table[index];
 	
 	if(entry.inode == NULL) {

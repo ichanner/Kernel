@@ -6,27 +6,26 @@
 #include "./ftable.c"
 #include "../utils/math.c"
 #include "./partition.c"
-
 /*
 	TODO:
 	
 
 	
 	- filesystem
+	 
 	
+	- child processes	
+	- process busy handling
+	- process file descriptors 
+	- process signals (kill, interrupt)  
+	- heap manangement per procss
+	- stack management per process
+
 	- finish LRU swapping
 
 	- per process paging
 		- cr3 context switch
-		- demand paging 
-	
-	- child processes
-	- cpu threads per process
-	
-	- process busy handling
-	- send process signals (kill, interrupt, pause etc)  
-	- heap manangement per procss
-	- stack management per process
+		- demand paging
 
 	- mouse interrupt and tracking
 	- gui terminal 
@@ -41,7 +40,62 @@
 */
 
 
-inode_t* createDirectory(inode_t* parent_directory, char* name, drive_t drive, int partition_index);
+inode_t* createDirectory(inode_t* parent_directory, char* name, drive_t* drive, int partition_index);
+
+
+void cache(inode_t* inode, char* data, unsigned int start, unsigned int blocks) {
+
+	if(inode == NULL) return;
+
+	buffer_head_t* buffer_head = inode->buffer_head;
+
+	if(buffer_head == NULL) {
+
+		buffer_head = (buffer_head_t*)kalloc(sizeof(buffer_head_t));
+
+		buffer_head->start = start;
+		buffer_head->blocks = blocks;
+		buffer_head->data = data;
+		buffer_head->dirty = true;
+		buffer_head->prev = NULL;
+		buffer_head->next = NULL;
+
+		inode->buffer_head = buffer_head;
+	}
+	else {
+
+		buffer_head_t* new_buffer_head = (buffer_head_t*)kalloc(sizeof(buffer_head_t));
+		new_buffer_head->start = start;
+		new_buffer_head->blocks = blocks;
+		new_buffer_head->dirty = true;
+		new_buffer_head->data = data;
+		new_buffer_head->prev = NULL;
+		new_buffer_head->next = buffer_head;
+
+		buffer_head->prev = new_buffer_head;
+
+		inode->buffer_head = new_buffer_head;
+	}
+}
+
+char* checkCache(inode_t* inode, unsigned int start) {
+
+	if(inode == NULL) return NULL;
+
+	buffer_head_t* buffer_head = inode->buffer_head;
+
+	while(buffer_head->next != NULL) {
+
+		if(buffer_head->start == start) {
+
+			return buffer_head->data;
+		}	
+
+		buffer_head = buffer_head->next;
+	}
+
+	return NULL;
+}
 
 void initFs(drive_t* drive, int partition_index) {
 
@@ -55,7 +109,7 @@ void initFs(drive_t* drive, int partition_index) {
 			unsigned int data_region = 1 + (drive->sector_count * DATA_META_RATIO);
 
 			updateSuperBlock(1, data_region, drive->sector_count, 0, drive, 0);
-			createDirectory(NULL, "root", *drive, 0);
+			createDirectory(NULL, "root", drive, 0);
 
 			return;
 		}
@@ -82,14 +136,13 @@ void initFs(drive_t* drive, int partition_index) {
 					}
 				}
 
-				unsigned int meta_region = partition_table[i].start_sector;
+				unsigned int meta_region = partition_table[i].start_sector + 1;
 				unsigned int data_region = partition_table[i].start_sector + (partition_table[i].size * DATA_META_RATIO);
 				unsigned int sector_count = partition_table[i].size;
 				unsigned int start_lba = partition_table[i].start_sector;
-	
-				updateSuperBlock(meta_region, data_region, sector_count, start_lba, drive, partition_index);
 				
-				createDirectory(NULL, "root", *drive, i);
+				updateSuperBlock(meta_region, data_region, sector_count, start_lba, drive, partition_index);
+				createDirectory(NULL, "root", drive, i);
 
 				break;
 			}
@@ -117,163 +170,176 @@ void initFs(drive_t* drive, int partition_index) {
 	}
 }
 
-
-void addEntries(inode_t* inode, int free_sectors, int starting_ptr, drive_t drive, superblock_t* superblock, add_entry_state_t* prev_state) {
-	
-	int num_entries; int first_index; bool is_primary_table; int entry_table_sector; entry_t* entries; 
+void initEntryIterator(entry_iterator_t* it, inode_t* inode) {
 
 	#ifdef DEV 
-		num_entries = DEV;
+		it->num_entries = DEV;
 	#else 
-		num_entries = INODE_NUM_ENTRIES; 
+		it->num_entries = INODE_NUM_ENTRIES; 
 	#endif
 
-	if(prev_state == NULL) {
+	it->i = 0;
+	it->is_primary_table = true;
+	it->entry_table_sector = inode->meta.lba;
+	it->entries = inode->entries;
+}
 
-		is_primary_table = true;
-		first_index = 0;
-		entry_table_sector = inode->meta.lba;
-		entries = inode->entries;
-	}
-	else {
 
-		is_primary_table = prev_state->is_primary_table;
-		entry_table_sector = prev_state->entry_table_sector;
-		entries = prev_state->entries; 
-		first_index = prev_state->first_index;
-		num_entries = prev_state->num_entries;
-	}
 
+
+void entryIteratorAddEntry(entry_iterator_t* it, inode_t* inode, int blocks, int start, drive_t* drive, superblock_t* superblock) {
+	
 	while(true) { 
 
-		for(int i = first_index; i < num_entries - 1; i++) {
+		while(it->i < it->num_entries - 1) {
 
-			if(entries[i].blocks == 0){
+			int i = it->i;
+
+			it->i += 1;
+
+			if(it->entries[i].blocks == 0){
 
 				print(" Extent entry found at ");
 				printi(i);
 				print(" ");
 
-				entries[i].blocks = free_sectors;
-				entries[i].start = starting_ptr;
+				it->entries[i].blocks = blocks;
+				it->entries[i].start = start;
 
-				drive.write(1, entry_table_sector, is_primary_table ? inode : entries, drive); 
-
-				prev_state->entries = entries;
-				prev_state->entry_table_sector = entry_table_sector;
-				prev_state->is_primary_table = is_primary_table;
-				prev_state->num_entries = num_entries;
-				prev_state->first_index = i + 1;
+				drive->write(1, it->entry_table_sector, it->is_primary_table ? inode : it->entries, *drive); 
 
 				return;
 
 			}
 		}
 
+		it->i = 0;
+
 		// if next entry table doesn't exist in last entry
-		if(entries[num_entries - 1].blocks == 0) {
+		if(it->entries[it->num_entries - 1].blocks == 0) {
 
 			// allocate new entry table
 			entry_table_t* entry_table = (entry_table_t*)allocBuffer(sizeof(entry_table_t), drive);
 
 			// asign first entry in table
-			entry_table->entries[0].blocks = free_sectors;
-			entry_table->entries[0].start = starting_ptr;
+			entry_table->entries[0].blocks = blocks;
+			entry_table->entries[0].start = start;
 
 			// find a free sector for it
 			int new_entry_table_sector = allocMetaSector(superblock);
+
+			// write entry table to the sector 
+			drive->write(1, new_entry_table_sector, entry_table, *drive); 
+
+			// assign last entry to new entryly table
+			it->entries[it->num_entries - 1].blocks = 1;
+			it->entries[it->num_entries -1].start = new_entry_table_sector;
+
+			//update table in disk if its an extent table to point at tail
+			drive->write(1, it->entry_table_sector, it->is_primary_table ? inode : it->entries, *drive); 
 
 			println();
 			print("Entry table allocated at sector ");
 			printi(new_entry_table_sector);
 			println();
 
-			// write entry table to the sector 
-			drive.write(1, new_entry_table_sector, entry_table, drive); 
-
-			// assign last entry to new entryly table
-			entries[num_entries - 1].blocks = 1;
-			entries[num_entries -1].start = new_entry_table_sector;
-
-			//update table in disk if its an extent table to point at tail
-			drive.write(1, entry_table_sector, is_primary_table ? inode : entries, drive); 
-
-			prev_state->entries = entry_table->entries;
-			prev_state->entry_table_sector = new_entry_table_sector;
-			prev_state->is_primary_table = false;
-			prev_state->first_index = 1;
-
-			#ifdef DEV 
-				prev_state->num_entries = DEV;
-			#else 
-				prev_state->num_entries = EXT_TABLE_NUM_ENTRIES;
-			#endif
-
 			return;
 		}
-		else { 
-
-			print(" -> Going to next table ->");
-
-		    entry_table_sector = entries[num_entries - 1].start;
-			entries = (entry_t*)drive.read(1, entry_table_sector,  drive);
-		}
 		
+		print(" -> Going to next table ->");
 
-		is_primary_table = false;
+	    it->entry_table_sector = it->entries[it->num_entries - 1].start;
+		it->entries = (entry_t*)drive->read(1, it->entry_table_sector, *drive);
+		it->is_primary_table = false;
 
 		#ifndef DEV  
 		
-			num_entries = EXT_TABLE_NUM_ENTRIES;
+			it->num_entries = EXT_TABLE_NUM_ENTRIES;
 		
 		#endif
-
 	}
 }
 
-inode_t* directoryLookup(inode_t* inode, char* name, drive_t drive) {
+void addEntries(entry_iterator_t* it, inode_t* inode, int blocks, int start, drive_t* drive, superblock_t* superblock) {
 
-	#ifdef DEV 
-		int num_entries = DEV;
-	#else 
-		int num_entries = INODE_NUM_ENTRIES; 
-	#endif
-	
-	entry_t* entries = inode->entries;
+	if(it == NULL) {
+
+		entry_iterator_t it;
+
+		initEntryIterator(&it, inode);
+		entryIteratorAddEntry(&it, inode, blocks, start, drive, superblock);
+	}
+	else {
+
+		entryIteratorAddEntry(it, inode, blocks, start, drive, superblock);
+	}
+}
+
+inode_t* getNextEntry(entry_iterator_t* it, inode_t* inode, drive_t* drive) {
 
 	while(true) { 
 
-		for(int i = 0; i < num_entries - 1; i++) {
+		while(it->i < it->num_entries - 1) {
 
-			if(entries[i].blocks != 0){
-			
-				inode_t* inode = (inode_t*)drive.read(entries[i].blocks, entries[i].start, drive);	
-		
-				if(strcmp(inode->meta.name, name)) {
+			int start = it->entries[it->i].start;
+			int blocks = it->entries[it->i].blocks;
 
-					return inode;
-				}
+			it->i += 1;
 
+			if(blocks != 0) {
+
+				inode_t* cached_inode = checkCache(inode, start);
+
+				if(cached_inode != NULL) return cached_inode;
+
+				return (inode_t*)drive->read(blocks, start, *drive);
 			}
 		}
 
-		if(entries[num_entries - 1].blocks != 0) {
+		it->i = 0;
 
-		    int entry_table_sector = entries[num_entries - 1].start;
+		if(it->entries[it->num_entries - 1].blocks != 0) {
+
+		    it->entry_table_sector = it->entries[it->num_entries - 1].start;
+
+		    it->entries = (entry_t*)checkCache(inode, it->entry_table_sector);
 			
-			entries = (entry_t*)drive.read(1, entry_table_sector,  drive);
-			
+			if(it->entries == NULL) {
+
+				it->entries = (entry_t*)drive->read(1, it->entry_table_sector, *drive);
+			}
+
 			#ifndef DEV
 			
-				num_entries = EXT_TABLE_NUM_ENTRIES;
+				it->num_entries = BLOCK_SIZE/sizeof(entry_t);
 			
 			#endif
 		}
-		else{
+		else {
 
 			return NULL;
 		}
 		
+	}
+}
+
+
+inode_t* directoryLookup(inode_t* dir, char* name, drive_t* drive) {
+
+	entry_iterator_t it;
+
+	initEntryIterator(&it, dir);
+
+	inode_t* i = getNextEntry(&it, dir, drive);
+
+	while (i != NULL) {
+
+		if(strcmp(i->meta.name, name)) {
+
+			return i;
+		}
+		
+		i = getNextEntry(&it, dir, drive);
 	}
 
 	return NULL;
@@ -295,7 +361,7 @@ bool resolvePath(char* path, inode_t** inode, drive_t** drive, int* partition_in
 
    	  	 *partition_index = stringToNumber(*folder);
    	  	
-   	  	 *inode = (inode_t*)(*drive)->read(1, (*drive)->partitions[*partition_index].meta_region, **drive);
+   	  	 *inode = (inode_t*)(*drive)->read(1, (*drive)->partitions[*partition_index].root_inode_lba, **drive);
 
    	  	 if(*inode == NULL) {
 
@@ -307,7 +373,7 @@ bool resolvePath(char* path, inode_t** inode, drive_t** drive, int* partition_in
 
    	  	 inode_t* prev_inode = *inode;
 
-   	  	 *inode = directoryLookup(*inode, *folder, **drive);
+   	  	 *inode = directoryLookup(*inode, *folder, *drive);
 
    	  	 if(*inode == NULL) {
 
@@ -315,6 +381,7 @@ bool resolvePath(char* path, inode_t** inode, drive_t** drive, int* partition_in
 
    	  	 	return false;
    	  	 }
+   	  	 
 
    	  }
 
@@ -325,9 +392,9 @@ bool resolvePath(char* path, inode_t** inode, drive_t** drive, int* partition_in
 }
 
 
-inode_t* createInode(inode_t* parent_directory, char* name, file_type type, drive_t drive, int partition_index) {
+inode_t* createInode(inode_t* parent_directory, char* name, file_type type, drive_t* drive, int partition_index) {
 
-	superblock_t* superblock = &drive.partitions[partition_index];
+	superblock_t* superblock = &drive->partitions[partition_index];
 	
 	const int sector_for_inode = allocMetaSector(superblock);
 
@@ -346,25 +413,25 @@ inode_t* createInode(inode_t* parent_directory, char* name, file_type type, driv
 	print("Sector for inode: ");
 	printi(sector_for_inode);
 
-	drive.write(1, sector_for_inode, inode, drive);
+	drive->write(1, sector_for_inode, inode, *drive);
 
-	if(parent_directory) addEntries(parent_directory, 1, sector_for_inode, drive, superblock, NULL);
+	if(parent_directory) addEntries(NULL, parent_directory, 1, sector_for_inode, drive, superblock);
 
 	return inode;
 }
 
-inode_t* createDirectory(inode_t* parent_directory, char* name, drive_t drive, int partition_index) {
+inode_t* createDirectory(inode_t* parent_directory, char* name, drive_t* drive, int partition_index) {
 
 	return createInode(parent_directory, name, DIR, drive, partition_index);
 }
 
 
-inode_t* createFile_v2(inode_t* parent_directory, char* name, drive_t drive, int partition_index) {
+inode_t* createFile(inode_t* parent_directory, char* name, drive_t* drive, int partition_index) {
 
 	return createInode(parent_directory, name, FILE, drive, partition_index);		
 }
 
-int openFile(char* path) {
+int open(char* path) {
 	
 	inode_t* inode = NULL; drive_t* drive = NULL; int partition_index; char* file_name;
 	
@@ -372,16 +439,17 @@ int openFile(char* path) {
 
 	if(!file_found) {
 
-		print("name: ");
-		print(file_name);
-
-		inode = createFile_v2(inode, file_name, *drive, partition_index);
+		inode = createFile(inode, file_name, drive, partition_index);
 	}
 
 	if(inode == NULL) return -1;
 
+
+	// add inode and each ext entry to cache 
+
+	
 	int fd = fd_acc;
-	int fd_code = addToFileTable(inode, fd_acc, *drive, partition_index);
+	int fd_code = addToFileTable(inode, fd_acc, drive, partition_index);
 
 	//kfree(inode);
 
@@ -399,158 +467,204 @@ int openFile(char* path) {
 
 }
 
+char* splitData(char* data, int chunk_offset, int free_sectors, drive_t* drive){
 
-void writeFile(unsigned int fd, char* data, int size) {
+	char* split_data = (char*)allocBuffer(BLOCK_SIZE * free_sectors, drive);
+    
+    for(int i = 0; i < BLOCK_SIZE * free_sectors; i++) {
+       
+        split_data[i] = *(data + chunk_offset + i);
+    }
 
-	file_table_entry_t* entry = getFileTableEntry(fd);
-
-	if(entry == NULL) return;
-
-	superblock_t superblock = entry->superblock;
-	drive_t drive = entry->drive;
-	inode_t* inode = (inode_t*)entry->inode;
-
-	const int sectors_needed = ceil(size/512.0);
-	const int continous_region_start = findContinousFreeRegion(sectors_needed, superblock.data_region, superblock.sector_count, superblock.sector_bitmap);
-
-	if(continous_region_start == -1) {
-
-		print("Couldn't find continous region! \n");
-
-		int sectors_left = sectors_needed;
-		int curr_ptr = superblock.data_region;
-		int chunk_offset = 0;
-
-		add_entry_state_t* curr_state = (add_entry_state_t*)kalloc(sizeof(add_entry_state_t));
-
-		curr_state->is_primary_table = true;
-		curr_state->first_index = 0;
-		curr_state->entry_table_sector = inode->meta.lba;
-		curr_state->entries = inode->entries;
-
-		#ifdef DEV
-			curr_state->num_entries = DEV;
-		#else 
-			curr_state->num_entries = INODE_NUM_ENTRIES;
-		#endif
-		
-		while(sectors_left > 0){
-
-			if(getSector(curr_ptr, superblock.sector_bitmap) == 0){
-
-				int free_sectors = getFreeRegionExtent(curr_ptr, superblock.sector_count, superblock.sector_bitmap);
-
-				print("Free sectors found: ");
-				printi(free_sectors);
-
-				char* split_data = (char*)allocBuffer(512 * free_sectors, drive);
-			
-				for(int i = chunk_offset; i <  512 * free_sectors; i++) {
-
-					split_data[i] = *( data + i );
-				}
-
-				drive.write(free_sectors, curr_ptr, split_data, drive);
-
-				addEntries(inode, free_sectors, curr_ptr, drive, &superblock, curr_state);
-				setSectors(curr_ptr, curr_ptr + free_sectors, 1, superblock.sector_bitmap);
-
-				println();
-				sectors_left -= free_sectors;
-				curr_ptr += free_sectors;
-				chunk_offset += (free_sectors * 512);
-			}
-			else{
-
-				curr_ptr += 1;
-			}
-		}
-	}
-	else {
-
-		print("Continous region found! \n");
-
-		drive.write(sectors_needed, continous_region_start, data, drive);
-
-		addEntries(entry->inode, sectors_needed, continous_region_start, drive, &superblock, NULL);
-		setSectors(continous_region_start, continous_region_start + sectors_needed, 1, superblock.sector_bitmap);
-	}
+    return split_data;
 }
 
-void readFile(int fd, char* buffer){
 
-	#ifdef DEV 
-		int num_entries = DEV;
-	#else 
-		int num_entries = (BLOCK_SIZE-sizeof(meta_t))/sizeof(entry_t); 
-	#endif
+void append(entry_iterator_t* it, inode_t* inode, int blocks_left, char* data, file_table_entry_t* ft_entry, drive_t* drive, superblock_t* superblock) {
+
+	int* sector_bitmap = superblock->sector_bitmap;
+	int data_region = superblock->data_region;
+	int sector_count = superblock->sector_count;
+    int continuous_region_start = findContinousFreeRegion(blocks_left, data_region, sector_count, sector_bitmap);
+
+    if (continuous_region_start == -1) {
+
+        print("Couldn't find continuous region! \n");
+
+        int curr_sector = data_region;
+        int data_offset = 0;
+
+        while (blocks_left > 0) {
+
+            if (getSector(curr_sector, superblock->sector_bitmap) == 0) {
+
+                int free_sectors = getFreeRegionExtent(curr_sector, superblock->sector_count, superblock->sector_bitmap);
+                
+                free_sectors = (free_sectors > blocks_left) ? blocks_left : free_sectors;
+                
+                char* split_data = splitData(data, data_offset, free_sectors, drive);
+
+                drive->write(free_sectors, curr_sector, split_data, *drive);
+                
+                cache(inode, data, curr_sector, free_sectors);
+                addEntries(it, inode, free_sectors, curr_sector, drive, superblock);
+                setSectors(curr_sector, curr_sector + free_sectors, 1, superblock->sector_bitmap);
+
+                int bytes_written = free_sectors * BLOCK_SIZE;
+
+                blocks_left -= free_sectors;
+                data_offset += bytes_written;
+                curr_sector += free_sectors;
+                ft_entry->fpos += bytes_written;
+                inode->meta.size += bytes_written;
+
+            } 
+            else {
+
+                curr_sector += 1;
+            }
+        }
+
+    } else {
+
+        char* split_data = splitData(data, 0, blocks_left, drive);
+
+        drive->write(blocks_left, continuous_region_start, split_data, *drive);
+       
+        cache(inode, data, continuous_region_start, blocks_left);
+        addEntries(it, inode, blocks_left, continuous_region_start, drive, superblock);
+        setSectors(continuous_region_start, continuous_region_start + blocks_left, 1, superblock->sector_bitmap);
+
+        int bytes_written = blocks_left * BLOCK_SIZE;
+        
+        ft_entry->fpos += bytes_written;
+        inode->meta.size += bytes_written;
+    }
+}
+
+
+void write(unsigned int fd, char* data, int size) {
+
+    file_table_entry_t* ft_entry = getFileTableEntry(fd);
+    
+    if (ft_entry == NULL) return;
+
+    drive_t* drive = ft_entry->drive;
+    inode_t* inode = (inode_t*)ft_entry->inode;
+    superblock_t* superblock = ft_entry->superblock;
+    
+    if(inode == NULL || drive == NULL || superblock == NULL) return;
+
+    entry_t* ext_entry;
+    entry_iterator_t get_it;
+    entry_iterator_t add_it; 
+
+    initEntryIterator(&get_it, inode);
+    initEntryIterator(&add_it, inode);
+
+    int byte_offset = 0;
+    int data_offset = 0;
+    int blocks_left = ceil(size / (double)BLOCK_SIZE);
+
+    while ((ext_entry = getNextEntry(&get_it, inode, drive)) != NULL && blocks_left > 0) {
+    	
+    	int ext_entry_size = (ext_entry->blocks * BLOCK_SIZE);
+
+        if (ft_entry->fpos >= byte_offset && ft_entry->fpos < byte_offset + ext_entry_size) {
+
+            int copy_block_start = (ft_entry->fpos - byte_offset) / BLOCK_SIZE;
+            int copy_block_sector = ext_entry->start + copy_block_start;
+            int copy_block_end = min(blocks_left - copy_block_start, ext_entry->blocks - copy_block_start);
+            int total_copy_blocks = copy_block_end - copy_block_start;
+            int total_after_blocks = max(ext_entry->blocks - (copy_block_start + total_copy_blocks), 0);
+            int total_bytes_copied = total_copy_blocks * BLOCK_SIZE;
+
+            if (copy_block_start != 0) {
+
+                ext_entry->blocks -= (total_copy_blocks + total_after_blocks);
+                
+                addEntries(NULL, inode, total_copy_blocks, copy_block_sector, drive, superblock);
+
+            } else {
+
+                ext_entry->blocks = total_copy_blocks;
+            }
+
+            char* split_data = splitData(data, data_offset, total_copy_blocks, drive);
+            
+            drive->write(total_copy_blocks, copy_block_sector, split_data, *drive);
+
+            if (total_after_blocks > 0) {
+               
+                addEntries(NULL, inode, total_after_blocks, copy_block_sector + total_copy_blocks, drive, superblock);
+            }
+
+            blocks_left -= total_copy_blocks;
+            data_offset += total_bytes_copied;
+
+            //advance fpos
+            ft_entry->fpos += total_bytes_copied;
+
+        }
+
+        byte_offset += ext_entry_size;
+    }
+
+    if (blocks_left > 0) {
+
+        print("BLOCKS LEFT (appending): ");
+        printi(blocks_left);
+        print("\n");
+
+        append(&add_it, inode, blocks_left, data + data_offset, ft_entry, drive, superblock);
+    }
+}
+
+
+void read(int fd, char* buffer){
 	
-	file_table_entry_t* entry = getFileTableEntry(fd);
-	inode_t* inode = (inode_t*)entry->inode;
-	drive_t drive = entry->drive;
-	entry_t* entries = inode->entries;
+	file_table_entry_t* ft_entry = getFileTableEntry(fd);
+	
+	if(ft_entry == NULL) return;
 
-	int chunk_offset = 0;
+	inode_t* inode = (inode_t*)ft_entry->inode;
+	drive_t* drive = ft_entry->drive;
+	superblock_t* superblock = ft_entry->superblock;
+	
+	if(inode == NULL || drive == NULL || superblock == NULL) return;
 
-	while(true) { 
+	entry_t* ext_entry;
+	entry_iterator_t it;
 
-		for(int i = 0; i < num_entries - 1; i++) {
+	initEntryIterator(&it, inode);
 
-			if(entries[i].blocks != 0){
-			
-				char* data = (char*)drive.read(entries[i].blocks, entries[i].start, drive);	
+	int data_offset = 0;
 
-				for(int j = 0; j < entries[i].blocks * 512; j++){
+	while ((ext_entry = getNextEntry(&it, inode, drive)) != NULL) {
 
-					buffer[chunk_offset + j] = data[j];
-				}
-
-				chunk_offset += entries[i].blocks * 512;
 		
-			}
+		char* data = checkCache(inode, ext_entry->start);
+
+		if(data == NULL) {
+	
+			data = (char*)drive->read(ext_entry->blocks, ext_entry->start, *drive);	
 		}
 
-		if(entries[num_entries - 1].blocks != 0) {
+		for(int j = 0; j < ext_entry->blocks * BLOCK_SIZE; j++){
 
-		    int entry_table_sector = entries[num_entries - 1].start;
-			
-			entries = (entry_t*)drive.read(1, entry_table_sector,  drive);
-			
-			#ifndef DEV
-			
-				num_entries = BLOCK_SIZE/sizeof(entry_t);
-			
-			#endif
+			buffer[data_offset + j] = data[j];
 		}
-		else{
 
-			return NULL;
-		}
+		data_offset += ext_entry->blocks * BLOCK_SIZE;
 		
 	}
-
-	return NULL;
-
 }
 
-void appendFile(int fd, char* data, int size){
 
 
-}
-
-void renameFile(){
-
-
-}
-void seekFile(){}
-
-void closeFile(){}
-void deleteFile(){}
-void readDirectory(){}
-void openDirectory(){}
-void closeDirectory(){}
-void deleteDirectory(){}
-
+void rename(){}
+void close(){}
+void delete(){}
 
 
 void test_fs(){
@@ -643,27 +757,43 @@ void test_fs(){
 
 	//inode_t* parent = (inode_t*)drives[0].read(1, drives[0].partitions[1].root_inode_lba, drives[0]);
 
-	inode_t* parent_directory = (inode_t*)drives[0].read(1, drives[0].partitions[1].meta_region, drives[0]);
-	inode_t* directory = createDirectory(parent_directory, "thing1", drives[0], 1);
-	inode_t* directory2 = createDirectory(directory, "thing2", drives[0], 1);
+	inode_t* parent_directory = (inode_t*)drives[0].read(1, drives[0].partitions[1].root_inode_lba, drives[0]);
+	inode_t* directory = createDirectory(parent_directory, "thing1", &drives[0], 1);
+	inode_t* directory2 = createDirectory(directory, "thing2", &drives[0], 1);
 
-	//createFile_v2(directory2, "Hello", drives[0], 1);
+	//createFile(directory2, "Bye", drives[0], 1);
+	//createFile(directory2, "Hello", drives[0], 1);
 
+/*
+	inode_t* test = directoryLookup(directory2, "Bye", &drives[0]);
+
+	print("Name: ");
+	print(test->meta.name);
+*/
+
+	int fd = open("0/1/thing1/thing2/Bye");
 	
-	int fd = openFile("0/1/thing1/thing2/Bye");
-	int fd2 = openFile("0/1/thing1/thing2/Hello");
-	int fd3 = openFile("0/1/thing1/thing2/Good");
-	clearScreen();
+	/*
+	int fd2 = open("0/1/thing1/thing2/Hello");
+	int fd3 = open("0/1/thing1/thing2/Good");
+	int fd4 = open("0/1/thing1/thing2/Boy");
+	int fd5 = open("0/1/thing1/thing2/Must");
+	int fd6 = open("0/1/thing1/thing2/Love");
+	int fd7 = open("0/1/thing1/thing2/Now");
 
-	writeFile(fd, data, 512*10);
+		*/
+	
+	//write(fd, data, 512*10);
+	//read(fd, buffer);
 
-	readFile(fd, buffer);
+	/*clearScreen();
 
-
-	for(int i = 0; i < 512*2; i++){
+	for(int i = 0; i < 512*10; i++) {
 
 		printi(buffer[i]);
-	}
+	}*/
+
+
 
 	/*
 	inode_t* inode_3 = (inode_t*)file_table[0].inode;
@@ -671,14 +801,22 @@ void test_fs(){
 	inode_t* inode_5 = (inode_t*)file_table[0].next->next->inode;
 	*/
 
+	
 	file_table_entry_t* e1 = getFileTableEntry(fd);
+	inode_t* inode_3 = (inode_t*)e1->inode;
+	/*
 	file_table_entry_t* e2 = getFileTableEntry(fd2);
 	file_table_entry_t* e3 = getFileTableEntry(fd3);
 
 	inode_t* inode_3 = (inode_t*)e1->inode;
 	inode_t* inode_4 = (inode_t*)e2->inode;
+	
 	inode_t* inode_5 = (inode_t*)e3->inode;
+	
 
+	//write(fd, data, 512*10);
+
+	
 	println();
 	print(inode_3->meta.name);
 
@@ -687,7 +825,21 @@ void test_fs(){
 
 	println();
 	print(inode_5->meta.name);
+	*/
 
+	
+	write(fd, data, 512*10);
+
+	read(fd, buffer);
+
+	clearScreen();
+
+	for(int i = 0; i < 512*10; i++){
+
+		printi(buffer[i]);
+	}
+	
+	
 	/*
 	inode_t* inode3 = NULL;
 	drive_t* drive = NULL;

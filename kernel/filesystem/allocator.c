@@ -1,6 +1,6 @@
-void* allocBuffer(unsigned int size, drive_t drive) {
+void* allocBuffer(unsigned int size, drive_t* drive) {
 
-	if(drive.dma_mode != -1) {
+	if(drive->dma_mode != -1) {
 
 		void* buffer = allocPages(size);
 
@@ -14,7 +14,6 @@ void* allocBuffer(unsigned int size, drive_t drive) {
 
 
 int allocMetaSector(superblock_t* superblock) {
-
 
 	int curr_ptr = superblock->meta_region; 
 
